@@ -31,5 +31,4 @@ services:
       - "8000:8000"
     environment:
       - PORT=8000
-      # Recuerda pasar tus llaves de API en un archivo .env si es necesario
-      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
