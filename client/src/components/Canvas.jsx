@@ -106,7 +106,7 @@ export default function Canvas({ onTrace, disabled = false, initialText = '' }) 
   return (
     <div className="workspace-container" style={{ height: '100%', gridTemplateRows: 'auto 1fr', padding: 0 }}>
       {/* Top Header Selector */}
-      <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', height: '50%' }}>
+      <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', height: '70%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
             <Lightbulb size={20} color="#f59e0b" />
