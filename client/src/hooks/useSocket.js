@@ -139,7 +139,7 @@ export function useSocket(auth) {
       socket.off('session:nodeMap', onSessionNodeMap);
       disconnectSocket();
     };
-  }, [auth]);
+  }, [auth?.studentId, auth?.sessionId, auth?.role, auth?.displayName]);
 
   // Send keystroke trace
   const sendTrace = useCallback((metrics) => {
