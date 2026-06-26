@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  client:
+    build:
+      context: ./client
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_SERVER_URL=http://localhost:3001
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: ./server
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - AI_AGENT_BASE_URL=http://agents:8000
+      - CORS_ORIGIN=http://localhost:5173
+    depends_on:
+      - agents
+
+  agents:
+    build:
+      context: ./agents
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      # Recuerda pasar tus llaves de API en un archivo .env si es necesario
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
