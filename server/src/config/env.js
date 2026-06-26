@@ -20,6 +20,7 @@ dotenv.config();
  * @property {string} NODE_ENV
  * @property {string} SUPABASE_URL
  * @property {string} SUPABASE_ANON_KEY
+ * @property {string} SUPABASE_SERVICE_ROLE_KEY
  * @property {string} AI_AGENT_BASE_URL
  * @property {number} AI_AGENT_TIMEOUT_MS
  * @property {number} AI_AGENT_MAX_RETRIES
@@ -33,6 +34,7 @@ dotenv.config();
 const requiredVars = [
   'SUPABASE_URL',
   'SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
 ];
 
 /**
@@ -58,6 +60,7 @@ export const env = Object.freeze({
   // Supabase
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
 
   // AI Agent (Diego's FastAPI)
   AI_AGENT_BASE_URL: process.env.AI_AGENT_BASE_URL || 'http://localhost:8000',
