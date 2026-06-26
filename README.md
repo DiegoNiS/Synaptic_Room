@@ -223,15 +223,15 @@ synaptic-room/
 │       ├── App.jsx                   # Routing principal
 │       └── main.jsx
 │
-├── server/                           # Servidor central (Ower)
-│   ├── index.js                      # Entry point Express + Socket.io
-│   ├── routes/
-│   │   └── agentProxy.js            # Proxy HTTP → FastAPI
-│   ├── sockets/
-│   │   ├── traceHandler.js          # Maneja eventos "trace" del tracker
-│   │   └── mentorHandler.js         # Orquesta inicio/fin de mentorías
-│   ├── db/
-│   │   └── supabase.js              # Cliente y helpers de Supabase
+├── server/                           # Servidor central (Ower) - Clean Architecture (DDD)
+│   ├── src/
+│   │   ├── application/             # Casos de uso (MentorshipUseCase, TraceAnalysisUseCase)
+│   │   ├── domain/                  # Entidades puras y eventos (Student, Session, Mentorship)
+│   │   ├── infrastructure/          # Detalles (Supabase Repo, AgentClient, CircuitBreaker)
+│   │   ├── interfaces/              # Puntos de entrada (Socket.io handlers, Express routes)
+│   │   └── server.js                # Entry point y Composition Root (Inyección de dependencias)
+│   ├── tests/                       # Pruebas unitarias nativas (node:test)
+│   ├── db/                          # Esquemas SQL de Supabase (schema.sql)
 │   └── package.json
 │
 ├── agents/                           # Agentes IA (Diego)
@@ -334,7 +334,7 @@ Este es el contrato más importante del sistema. Si cambia, los tres servicios s
 
 #### `POST /analyze` — Analizar estado cognitivo
 
-**Request** (enviado por `server/routes/agentProxy.js`):
+**Request** (enviado por `server/src/infrastructure/ai/AgentClient.js` mediante `TraceAnalysisUseCase`):
 ```json
 {
   "student_id": "string",

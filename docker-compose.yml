@@ -21,6 +21,7 @@ services:
       - CORS_ORIGIN=http://localhost:5173
       - SUPABASE_URL=${SUPABASE_URL:-https://mock.supabase.co}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-mock_key}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-mock_service_key}
     depends_on:
       - agents
 
