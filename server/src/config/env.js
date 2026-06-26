@@ -6,7 +6,13 @@
 // silent runtime errors in production.
 // ============================================
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// En un monorepo, la "Single Source of Truth" es el .env de la raíz
+dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+// Fallback al local por si se corre aislado
+dotenv.config();
 
 /**
  * @typedef {Object} EnvConfig

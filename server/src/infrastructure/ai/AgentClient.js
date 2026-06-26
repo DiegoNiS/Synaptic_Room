@@ -180,11 +180,11 @@ export class AgentClient {
       const response = await fetch(`${this.baseUrl}/health`, {
         signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
       return response.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
