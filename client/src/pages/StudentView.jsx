@@ -211,6 +211,7 @@ export default function StudentView({ studentId, sessionId, displayName }) {
         flexDirection: 'column',
         gap: '20px',
         minHeight: 0,
+        maxHeight: 'calc(100vh - 64px)',
       }}>
         <Canvas
           onTrace={handleTrace}

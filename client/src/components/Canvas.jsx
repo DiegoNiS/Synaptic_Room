@@ -50,7 +50,7 @@ export default function Canvas({ onTrace, disabled = false, initialText = '' }) 
 
     // Support responsive sizing
     canvas.width = canvas.parentElement.offsetWidth || 500;
-    canvas.height = canvas.parentElement.offsetHeight || 300;
+    canvas.height = canvas.parentElement.offsetHeight || 600;
 
     const context = canvas.getContext('2d');
     context.lineCap = 'round';
@@ -106,7 +106,7 @@ export default function Canvas({ onTrace, disabled = false, initialText = '' }) 
   return (
     <div className="workspace-container" style={{ height: '100%', gridTemplateRows: 'auto 1fr', padding: 0 }}>
       {/* Top Header Selector */}
-      <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', height: '50%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
             <Lightbulb size={20} color="#f59e0b" />
@@ -144,12 +144,12 @@ export default function Canvas({ onTrace, disabled = false, initialText = '' }) 
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr',
-        gridTemplateRows: '1fr 1fr',
+        //gridTemplateRows: '4fr 6fr',
         gap: '20px',
         marginTop: '20px'
       }} className="desktop-split">
         {/* Text Reasoning Editor */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
           <div style={{
             padding: '12px 16px',
             borderBottom: '1px solid var(--border-color)',
@@ -182,7 +182,7 @@ export default function Canvas({ onTrace, disabled = false, initialText = '' }) 
         </div>
 
         {/* Live Whiteboard Sketchpad */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', }}>
           {/* Drawing Controls */}
           <div style={{
             padding: '10px 16px',
@@ -300,7 +300,7 @@ export default function Canvas({ onTrace, disabled = false, initialText = '' }) 
       <style>{`
         @media (min-width: 900px) {
           .desktop-split {
-            grid-template-columns: 1fr 1fr !important;
+            grid-template-columns: 4fr 6fr !important;
             grid-template-rows: 1fr !important;
           }
         }
