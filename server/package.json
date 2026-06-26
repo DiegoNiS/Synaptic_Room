@@ -9,17 +9,23 @@
     "dev": "node --watch src/server.js",
     "test": "node --test tests/**/*.test.js"
   },
-  "keywords": ["education", "ai", "real-time", "websocket", "collaborative-learning"],
+  "keywords": [
+    "education",
+    "ai",
+    "real-time",
+    "websocket",
+    "collaborative-learning"
+  ],
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "socket.io": "^4.8.1",
-    "uuid": "^11.1.0",
-    "@supabase/supabase-js": "^2.49.4"
+    "uuid": "^11.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
