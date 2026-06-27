@@ -17,7 +17,7 @@ const STATE_GLOW = {
   analyzing: 'rgba(245,158,11,0.7)',
 };
 
-const NODE_RADIUS = 30;
+const NODE_RADIUS = 10;
 
 /**
  * NodeMap — D3.js force-directed graph for the teacher's real-time classroom view.
@@ -100,10 +100,10 @@ export default function NodeMap({ nodeMap, width = 800, height = 520 }) {
     // D3 Force Simulation
     if (simulationRef.current) simulationRef.current.stop();
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(mentorshipLinks).id(d => d.id).distance(160).strength(0.6))
-      .force('charge', d3.forceManyBody().strength(-280))
+      .force('link', d3.forceLink(mentorshipLinks).id(d => d.id).distance(140).strength(0.5))
+      .force('charge', d3.forceManyBody().strength(-350)) // Stronger repulsion to space nodes out like Obsidian
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide(NODE_RADIUS + 18));
+      .force('collide', d3.forceCollide(NODE_RADIUS + 25)); // Spaced collisions
     simulationRef.current = simulation;
 
     // Draw mentorship links
@@ -140,52 +140,30 @@ export default function NodeMap({ nodeMap, width = 800, height = 520 }) {
 
     // Outer glow ring
     nodeGs.append('circle')
-      .attr('r', NODE_RADIUS + 8)
+      .attr('r', NODE_RADIUS + 6)
       .attr('fill', 'none')
       .attr('stroke', d => STATE_COLORS[d.state] || STATE_COLORS.idle)
-      .attr('stroke-width', 1.5)
-      .attr('stroke-opacity', 0.4)
+      .attr('stroke-width', 1.2)
+      .attr('stroke-opacity', 0.5)
       .attr('filter', d => `url(#glow-${d.state})`);
 
     // Main node circle
     nodeGs.append('circle')
       .attr('r', NODE_RADIUS)
-      .attr('fill', d => {
-        const color = STATE_COLORS[d.state] || STATE_COLORS.idle;
-        return color + '30'; // 19% opacity fill
-      })
-      .attr('stroke', d => STATE_COLORS[d.state] || STATE_COLORS.idle)
-      .attr('stroke-width', 2.5)
+      .attr('fill', d => STATE_COLORS[d.state] || STATE_COLORS.idle)
+      .attr('stroke', '#0c1020') // clean dark border
+      .attr('stroke-width', 1.5)
       .attr('filter', d => `url(#glow-${d.state})`);
 
-    // State emoji icon
+    // Name label (Obsidian style - clean, small text below node)
     nodeGs.append('text')
       .attr('text-anchor', 'middle')
-      .attr('dy', '-4px')
-      .attr('font-size', '16px')
-      .text(d => {
-        const icons = { flow: '⚡', blocked: '⚠️', mentoring: '🤝', idle: '💤', analyzing: '🔍' };
-        return icons[d.state] || '💤';
-      });
-
-    // Name label
-    nodeGs.append('text')
-      .attr('text-anchor', 'middle')
-      .attr('dy', '16px')
+      .attr('dy', `${NODE_RADIUS + 15}px`)
       .attr('font-family', 'Inter, sans-serif')
-      .attr('font-size', '11px')
-      .attr('font-weight', '600')
-      .attr('fill', '#f3f4f6')
-      .text(d => d.label.length > 10 ? d.label.slice(0, 10) + '…' : d.label);
-
-    // Confidence percentage (small text)
-    nodeGs.append('text')
-      .attr('text-anchor', 'middle')
-      .attr('dy', '28px')
-      .attr('font-family', 'JetBrains Mono, monospace')
       .attr('font-size', '9px')
-      .attr('fill', d => STATE_COLORS[d.state] || '#6b7280')
-      .text(d => d.state !== 'idle' ? `${Math.round(d.confidence * 100)}%` : '');
+      .attr('font-weight', '500')
+      .attr('fill', '#e5e7eb')
+      .text(d => d.label);
 
     // Tooltip on hover
     const tooltip = d3.select('body').select('#synaptic-tooltip');
