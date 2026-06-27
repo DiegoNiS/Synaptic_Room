@@ -55,15 +55,23 @@ export class TraceAnalysisUseCase {
       return;
     }
 
+    // Calculate backspace ratio safely
+    const keystrokes = aggregatedMetrics.keystrokeCount || 1;
+    const backspace_ratio = aggregatedMetrics.deletionCount / keystrokes;
+
     // 1. Build the payload for the AI Agent
     const tracePayload = {
-      sessionId,
-      studentId,
-      windowMetrics: aggregatedMetrics,
-      historicalContext: {
-        lastState: student.state,
-        blockedForMs: student.state === 'blocked' ? student.timeInCurrentState() : 0,
-      },
+      session_id: sessionId,
+      student_id: studentId,
+      trace: {
+        wpm: aggregatedMetrics.wpm,
+        pause_duration_ms: aggregatedMetrics.pauseDurationMs,
+        backspace_ratio: backspace_ratio,
+        elapsed_seconds: Math.round(aggregatedMetrics.windowSizeMs / 1000) || 1,
+        chars_written: aggregatedMetrics.keystrokeCount,
+        paste_count: aggregatedMetrics.pasteCount || 0,
+        text_snapshot: aggregatedMetrics.textSnapshot || '',
+      }
     };
 
     // 2. Call the AI Agent (protected by circuit breaker + retry)

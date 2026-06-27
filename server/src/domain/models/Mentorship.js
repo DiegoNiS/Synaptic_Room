@@ -45,6 +45,7 @@ export class Mentorship {
     status = 'active',
     createdAt = Date.now(),
     expiresAt = Date.now() + Mentorship.DEFAULT_DURATION_MS,
+    mentorInstructions = '',
   }) {
     this.mentorshipId = mentorshipId;
     this.sessionId = sessionId;
@@ -56,6 +57,7 @@ export class Mentorship {
     this.status = status;
     this.createdAt = createdAt;
     this.expiresAt = expiresAt;
+    this.mentorInstructions = mentorInstructions;
   }
 
   /**
@@ -94,6 +96,7 @@ export class Mentorship {
     return new Mentorship({
       ...this,
       status: reason === 'resolved' ? 'completed' : reason === 'expired' ? 'expired' : 'cancelled',
+      mentorInstructions: this.mentorInstructions,
     });
   }
 
@@ -114,6 +117,7 @@ export class Mentorship {
       },
       topic: this.topic,
       expiresAt: this.expiresAt,
+      mentorInstructions: this.mentorInstructions,
     };
   }
 }

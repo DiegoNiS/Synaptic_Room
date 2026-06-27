@@ -14,6 +14,11 @@
 -- in-memory via Session/Student domain models.
 -- ============================================
 
+-- 0. Limpiar tablas antiguas si existen (para corregir errores previos)
+DROP TABLE IF EXISTS public.mentorships CASCADE;
+DROP TABLE IF EXISTS public.cognitive_events CASCADE;
+DROP TABLE IF EXISTS public.sessions CASCADE;
+
 -- ────────────────────────────────────────────
 -- 1. SESSIONS
 -- ────────────────────────────────────────────
@@ -21,7 +26,7 @@
 -- Status transitions: 'active' → 'ended'
 -- ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
-  id          UUID PRIMARY KEY,
+  id          TEXT PRIMARY KEY,
   teacher_id  TEXT,
   status      TEXT NOT NULL DEFAULT 'active'
                 CHECK (status IN ('active', 'ended')),
@@ -42,7 +47,7 @@ COMMENT ON TABLE sessions IS 'Classroom session records for post-class analytics
 -- ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS cognitive_events (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id  UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   student_id  TEXT NOT NULL,
   event_type  TEXT NOT NULL,
   metadata    JSONB DEFAULT '{}'::jsonb,
@@ -72,8 +77,8 @@ CREATE INDEX IF NOT EXISTS idx_cognitive_events_student
 -- duration_ms is computed on close by the server.
 -- ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS mentorships (
-  id            UUID PRIMARY KEY,
-  session_id    UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  id            TEXT PRIMARY KEY,
+  session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   mentor_id     TEXT NOT NULL,
   mentor_name   TEXT NOT NULL,
   mentee_id     TEXT NOT NULL,
@@ -123,18 +128,10 @@ ALTER TABLE mentorships ENABLE ROW LEVEL SECURITY;
 -- so these policies effectively block anon access
 -- while letting the backend operate freely.
 
--- Read-only policies for anon (for the teacher dashboard to query analytics)
-CREATE POLICY "Allow anon read sessions"
-  ON sessions FOR SELECT
-  USING (true);
-
-CREATE POLICY "Allow anon read cognitive_events"
-  ON cognitive_events FOR SELECT
-  USING (true);
-
-CREATE POLICY "Allow anon read mentorships"
-  ON mentorships FOR SELECT
-  USING (true);
+-- All policies for 'anon' have been removed to secure the database.
+-- By default, when RLS is enabled and no policies exist, all access is denied.
+-- The Node.js backend uses SUPABASE_SERVICE_ROLE_KEY, which automatically
+-- bypasses RLS, so it will continue to work perfectly while keeping your data safe from the public.
 
 
 -- ============================================

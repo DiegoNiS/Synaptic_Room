@@ -5,7 +5,7 @@ from models.schemas import MatchMentorResponse
 # Definimos el Agente Cognitive Mesh usando Google ADK
 cognitive_mesh_agent = Agent(
     name="Cognitive Mesh AI",
-    model="gemini-1.5-pro",
+    model="gemini-1.5-flash",
     system_instruction=(
         "Eres un orquestador inteligente dentro de un aula virtual. "
         "Tu tarea es conectar a un estudiante que se ha 'bloqueado' con el mejor "

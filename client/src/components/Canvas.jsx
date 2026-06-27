@@ -45,7 +45,7 @@ export default function Canvas({ onTrace, disabled = false }) {
   const dragRef = useRef(null);
 
   // ── Metrics tracker ──────────────────────────────────────────────────────
-  const { recordKeystroke, updateTextSnapshot } = useTracker(onTrace, 2000);
+  const { recordKeystroke, recordPaste, updateTextSnapshot } = useTracker(onTrace, 2000);
 
   // ── Canvas initialisation ────────────────────────────────────────────────
   useEffect(() => {
@@ -446,6 +446,7 @@ export default function Canvas({ onTrace, disabled = false }) {
               onDragStart={handleBoxDragStart}
               onTextChange={updateBoxText}
               onKeyDown={recordKeystroke}
+              onPaste={recordPaste}
               onFocus={setActiveBoxId}
               onDelete={deleteBox}
             />
@@ -457,7 +458,7 @@ export default function Canvas({ onTrace, disabled = false }) {
 }
 
 // ── TextBox sub-component ─────────────────────────────────────────────────────
-function TextBox({ box, active, disabled, onDragStart, onTextChange, onKeyDown, onFocus, onDelete }) {
+function TextBox({ box, active, disabled, onDragStart, onTextChange, onKeyDown, onPaste, onFocus, onDelete }) {
   return (
     <div
       style={{
@@ -528,6 +529,10 @@ function TextBox({ box, active, disabled, onDragStart, onTextChange, onKeyDown, 
         onKeyDown={e => {
           e.stopPropagation();
           onKeyDown(e.key === 'Backspace' || e.key === 'Delete');
+        }}
+        onPaste={e => {
+          e.stopPropagation();
+          onPaste();
         }}
         onClick={e => { e.stopPropagation(); onFocus(box.id); }}
         onFocus={() => onFocus(box.id)}

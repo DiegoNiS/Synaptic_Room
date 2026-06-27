@@ -246,7 +246,7 @@ export default function MentorPanel({
               <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>🧠</div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                 {isMentor
-                  ? `La IA detectó que ${partnerName} necesita ayuda. Guíalo con preguntas que activen su razonamiento.`
+                  ? <span><strong>Instrucciones de la IA: </strong> {mentorship?.mentorInstructions || `Guía a ${partnerName} con preguntas que activen su razonamiento.`}</span>
                   : `La IA conectó a ${partnerName} contigo. Pídele que te explique cómo piensa el problema.`}
               </div>
             </div>

@@ -7,7 +7,7 @@
 // ============================================
 
 /**
- * @typedef {'flow' | 'blocked' | 'idle' | 'analyzing' | 'mentoring'} CognitiveState
+ * @typedef {'flow' | 'blocked' | 'idle' | 'analyzing' | 'mentoring' | 'fraude'} CognitiveState
  */
 
 /**

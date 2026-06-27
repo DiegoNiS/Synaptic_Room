@@ -10,7 +10,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Podemos usar flash para rapidez, pero el README dice Gemini 1.5 Pro
 # Para producción en el hackathon, usa "gemini-1.5-pro", pero "gemini-1.5-flash" es más rápido
-MODEL_NAME = "gemini-3.1-flash-lite"
+MODEL_NAME = "gemini-1.5-flash"
 
 def analyze_with_gemini(prompt: str, system_instruction: str = None) -> dict:
     """

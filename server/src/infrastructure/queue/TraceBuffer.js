@@ -158,6 +158,7 @@ export class TraceBuffer {
       pauseDurationMs: Math.max(...events.map((e) => e.pauseDurationMs)),
       deletionCount: events.reduce((sum, e) => sum + e.deletionCount, 0),
       keystrokeCount: events.reduce((sum, e) => sum + e.keystrokeCount, 0),
+      pasteCount: events.reduce((sum, e) => sum + (e.pasteCount || 0), 0),
       textSnapshot: events[n - 1].textSnapshot, // Latest snapshot
       windowSizeMs: events[n - 1].timestamp - events[0].timestamp,
       eventCount: n,

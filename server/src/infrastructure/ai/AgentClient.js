@@ -149,6 +149,22 @@ export class AgentClient {
   }
 
   /**
+   * Asks the Cognitive Mesh AI to match a blocked student with the best mentor
+   * and generate Socratic mentorship instructions based on the blockage point.
+   *
+   * @param {Object} matchPayload
+   * @param {string} matchPayload.blocked_student_id
+   * @param {string} matchPayload.session_id
+   * @param {string[]} matchPayload.available_mentors
+   * @param {string} matchPayload.blockage_point
+   * @param {string} matchPayload.text_snapshot
+   * @returns {Promise<Object>} The mentorship match result
+   */
+  async matchMentor(matchPayload) {
+    return this._postWithTimeout('/match-mentor', matchPayload);
+  }
+
+  /**
    * Makes an HTTP POST with a strict timeout using AbortController.
    * @param {string} path - API endpoint path
    * @param {Object} body - Request body

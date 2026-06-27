@@ -11,6 +11,7 @@ export function useTracker(onFlush, intervalMs = 2000) {
   const textRef = useRef('');
   const keystrokesRef = useRef(0);
   const deletionsRef = useRef(0);
+  const pasteCountRef = useRef(0);
   const maxPauseRef = useRef(0);
   const lastKeyTimeRef = useRef(Date.now());
   const intervalStartRef = useRef(Date.now());
@@ -25,6 +26,10 @@ export function useTracker(onFlush, intervalMs = 2000) {
     lastKeyTimeRef.current = now;
     keystrokesRef.current += 1;
     if (isDeletion) deletionsRef.current += 1;
+  }, []);
+
+  const recordPaste = useCallback(() => {
+    pasteCountRef.current += 1;
   }, []);
 
   // Update the combined text snapshot from all text boxes
@@ -55,11 +60,13 @@ export function useTracker(onFlush, intervalMs = 2000) {
         pauseDurationMs: Math.round(pauseDurationMs),
         deletionCount: deletionsRef.current,
         keystrokeCount: keystrokesRef.current,
+        pasteCount: pasteCountRef.current,
         textSnapshot: text || '',
       });
 
       keystrokesRef.current = 0;
       deletionsRef.current = 0;
+      pasteCountRef.current = 0;
       maxPauseRef.current = 0;
       intervalStartRef.current = now;
     }, intervalMs);
@@ -67,5 +74,5 @@ export function useTracker(onFlush, intervalMs = 2000) {
     return () => clearInterval(timer);
   }, [onFlush, intervalMs]);
 
-  return { recordKeystroke, updateTextSnapshot, textRef };
+  return { recordKeystroke, recordPaste, updateTextSnapshot, textRef };
 }

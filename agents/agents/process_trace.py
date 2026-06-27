@@ -5,7 +5,7 @@ from models.schemas import WindowMetrics, HistoricalContext, AnalysisResult, Ana
 # Definimos el Agente Process Trace usando Google ADK
 process_trace_agent = Agent(
     name="Process Trace AI",
-    model="gemini-1.5-pro",
+    model="gemini-1.5-flash",
     system_instruction=(
         "Eres un agente especializado en el análisis del proceso cognitivo de estudiantes "
         "a través de sus métricas de escritura y el texto que redactan. \n\n"

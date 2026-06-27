@@ -18,7 +18,7 @@ export default function StatusBadge({ state }) {
         return { label: 'Mentoreando 🤝', className: 'mentoring' };
       case 'idle':
       default:
-        return { label: 'Inactivo 💤', className: 'idle' };
+        return { label: 'Activo 🟢', className: 'idle' };
     }
   };
 
