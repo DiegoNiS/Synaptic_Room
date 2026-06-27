@@ -107,6 +107,48 @@ export class AgentClient {
   }
 
   /**
+   * Calls Cognitive Mesh to find a mentor.
+   * @param {string} blockedStudentId
+   * @param {string} sessionId
+   * @param {string[]} availableMentors
+   * @returns {Promise<Object>} Match result
+   */
+  async matchMentor(blockedStudentId, sessionId, availableMentors) {
+    const startTime = Date.now();
+    try {
+      const payload = { blockedStudentId, sessionId, availableMentors };
+      const result = await this.circuitBreaker.execute(() =>
+        retryWithBackoff(
+          () => this._postWithTimeout('/match-mentor', payload),
+          {
+            maxRetries: this.maxRetries,
+            baseDelayMs: 500,
+            maxDelayMs: 3000,
+            operationName: `matchMentor(${blockedStudentId})`,
+            shouldRetry: (err) => {
+              // Don't retry client errors (4xx)
+              if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
+                return false;
+              }
+              return true;
+            },
+          }
+        )
+      );
+
+      const latencyMs = Date.now() - startTime;
+      log.info(
+        { blockedStudentId, latencyMs, mentorId: result?.mentorId, matchScore: result?.matchScore },
+        'AI mentor matchmaking completed'
+      );
+      return result;
+    } catch (error) {
+      log.error({ err: error, blockedStudentId }, 'Cognitive Mesh matchmaking failed');
+      return { mentorId: 'none', blockedId: blockedStudentId, matchScore: 0 };
+    }
+  }
+
+  /**
    * Makes an HTTP POST with a strict timeout using AbortController.
    * @param {string} path - API endpoint path
    * @param {Object} body - Request body

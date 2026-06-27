@@ -68,6 +68,7 @@ const mentorshipUseCase = new MentorshipUseCase({
   activeSessions,
   activeMentorships,
   sessionRepository,
+  agentClient,
   io: null, // Will be set after Socket.io is created
 });
 

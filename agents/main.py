@@ -31,7 +31,7 @@ async def analyze_trace(request: AnalyzeRequest):
     Recibe métricas de tecleo y decide el estado cognitivo del estudiante.
     """
     try:
-        response = await run_process_trace(request.student_id, request.trace)
+        response = await run_process_trace(request.studentId, request.windowMetrics, request.historicalContext)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en el agente de Process Trace: {str(e)}")
@@ -42,7 +42,7 @@ async def match_mentor(request: MatchMentorRequest):
     Busca al mejor mentor disponible para un estudiante bloqueado.
     """
     try:
-        response = await run_cognitive_mesh(request.blocked_student_id, request.available_mentors)
+        response = await run_cognitive_mesh(request.blockedStudentId, request.availableMentors)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en el agente Cognitive Mesh: {str(e)}")

@@ -19,12 +19,14 @@ export class MentorshipUseCase {
    * @param {Map<string, import('../domain/models/Session.js').Session>} deps.activeSessions
    * @param {Map<string, Mentorship>} deps.activeMentorships
    * @param {import('../infrastructure/db/SessionRepository.js').SessionRepository} deps.sessionRepository
+   * @param {import('../infrastructure/ai/AgentClient.js').AgentClient} deps.agentClient
    * @param {import('socket.io').Server} deps.io
    */
-  constructor({ activeSessions, activeMentorships, sessionRepository, io }) {
+  constructor({ activeSessions, activeMentorships, sessionRepository, agentClient, io }) {
     this.activeSessions = activeSessions;
     this.activeMentorships = activeMentorships;
     this.sessionRepository = sessionRepository;
+    this.agentClient = agentClient;
     this.io = io;
 
     // Start the expiration checker (runs every 30 seconds)
@@ -48,13 +50,49 @@ export class MentorshipUseCase {
       return null;
     }
 
-    // Find the best available mentor in the same session
-    const mentor = session.findBestMentor(blockedStudentId);
-    if (!mentor) {
+    // Find all potential mentors in flow
+    const availableMentors = Array.from(session.students.values())
+      .filter((s) => s.studentId !== blockedStudentId && s.isAvailableAsMentor())
+      .map((s) => s.studentId);
+
+    if (availableMentors.length === 0) {
+      log.info({ sessionId, blockedStudentId }, 'No available mentors in flow');
+      return null;
+    }
+
+    let mentorId = null;
+    if (this.agentClient) {
+      try {
+        const matchResult = await this.agentClient.matchMentor(blockedStudentId, sessionId, availableMentors);
+        if (matchResult && matchResult.mentorId && matchResult.mentorId !== 'none') {
+          mentorId = matchResult.mentorId;
+          log.info({ blockedStudentId, mentorId, matchScore: matchResult.matchScore }, 'AI match found via Cognitive Mesh');
+        }
+      } catch (error) {
+        log.warn({ err: error, blockedStudentId }, 'AI mentor matching failed, falling back to heuristic');
+      }
+    }
+
+    // Fallback to basic heuristic if AI fails or returns none
+    if (!mentorId) {
+      const fallbackMentor = session.findBestMentor(blockedStudentId);
+      if (fallbackMentor) {
+        mentorId = fallbackMentor.studentId;
+        log.info({ blockedStudentId, mentorId }, 'Fallback to basic heuristic mentor matching');
+      }
+    }
+
+    if (!mentorId) {
       log.info(
         { sessionId, blockedStudentId },
         'No available mentor found — student will be retried on next analysis'
       );
+      return null;
+    }
+
+    const mentor = session.getStudent(mentorId);
+    if (!mentor) {
+      log.error({ mentorId, sessionId }, 'Mentor student object not found in session');
       return null;
     }
 

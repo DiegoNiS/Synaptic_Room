@@ -3,32 +3,42 @@ from typing import List, Literal, Optional
 
 # --- Modelos para el endpoint /analyze ---
 
-class TraceMetrics(BaseModel):
+class WindowMetrics(BaseModel):
     wpm: float
-    pause_duration_ms: int
-    backspace_ratio: float
-    elapsed_seconds: int
-    chars_written: int
+    pauseDurationMs: float
+    deletionCount: float
+    keystrokeCount: float
+    textSnapshot: str
+    windowSizeMs: float
+    eventCount: float
+
+class HistoricalContext(BaseModel):
+    lastState: str
+    blockedForMs: float
 
 class AnalyzeRequest(BaseModel):
-    student_id: str
-    session_id: str
-    trace: TraceMetrics
+    studentId: str
+    sessionId: str
+    windowMetrics: WindowMetrics
+    historicalContext: HistoricalContext
+
+class AnalysisResult(BaseModel):
+    state: Literal["flow", "blocked", "idle", "analyzing"]
+    confidence: float
+    blockagePoint: Optional[str] = None
 
 class AnalyzeResponse(BaseModel):
-    student_id: str
-    estado: Literal["flujo", "procesando", "bloqueado"]
-    confianza: float
-    razon: str
+    studentId: str
+    analysis: AnalysisResult
 
 # --- Modelos para el endpoint /match-mentor ---
 
 class MatchMentorRequest(BaseModel):
-    blocked_student_id: str
-    session_id: str
-    available_mentors: List[str]
+    blockedStudentId: str
+    sessionId: str
+    availableMentors: List[str]
 
 class MatchMentorResponse(BaseModel):
-    mentor_id: str
-    blocked_id: str
-    match_score: float
+    mentorId: str
+    blockedId: str
+    matchScore: float

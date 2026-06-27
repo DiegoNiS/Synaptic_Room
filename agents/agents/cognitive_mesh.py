@@ -9,12 +9,11 @@ cognitive_mesh_agent = Agent(
     system_instruction=(
         "Eres un orquestador inteligente dentro de un aula virtual. "
         "Tu tarea es conectar a un estudiante que se ha 'bloqueado' con el mejor "
-        "compañero disponible que pueda actuar como mentor (alguien que esté en 'flujo'). \n\n"
+        "compañero disponible que pueda actuar como mentor (alguien que esté en 'flow'). \n\n"
         "Reglas de emparejamiento:\n"
-        "1. Prioriza mentores que tengan perfiles compatibles o que el sistema indique que están en flujo.\n"
-        "2. Evalúa las opciones y devuelve el 'mentor_id' seleccionado, el 'blocked_id' que ingresó, "
-        "y un 'match_score' (0.0 a 1.0) que indique qué tan ideal es el emparejamiento.\n\n"
-        "Debes responder estrictamente con los datos de emparejamiento evaluados."
+        "1. Evalúa las opciones y devuelve el 'mentorId' seleccionado de la lista de disponibles, "
+        "el 'blockedId' que ingresó, y un 'matchScore' (0.0 a 1.0) que indique qué tan ideal es el emparejamiento.\n\n"
+        "Debes responder estrictamente con el formato JSON definido."
     ),
     response_schema=MatchMentorResponse
 )
@@ -27,9 +26,9 @@ async def run_cognitive_mesh(blocked_id: str, available_mentors: List[str]) -> M
     # Si no hay mentores, devolvemos un match nulo
     if not available_mentors:
         return MatchMentorResponse(
-            mentor_id="none",
-            blocked_id=blocked_id,
-            match_score=0.0
+            mentorId="none",
+            blockedId=blocked_id,
+            matchScore=0.0
         )
         
     prompt = (
