@@ -26,6 +26,9 @@ let supabaseClient = null;
  * @returns {import('@supabase/supabase-js').SupabaseClient}
  */
 export function getSupabaseClient() {
+  if (!env.SUPABASE_ENABLED) {
+    return null; // Persistence disabled — the system runs fully in-memory.
+  }
   if (!supabaseClient) {
     supabaseClient = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: {

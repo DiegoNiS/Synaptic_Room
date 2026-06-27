@@ -1,121 +1,152 @@
 // ============================================
 // Synaptic Room — Session Handler
 // ============================================
-// Handles student join/leave events and manages
-// Socket.io rooms. This is where students are
-// added to the in-memory session model and placed
-// in the correct room for real-time broadcasts.
+// Handles join (implicit on connect) and leave (disconnect).
+//
+// Key behaviors:
+//   - Teachers are NOT stored as Students (no duplicate dashboard node).
+//   - A reconnecting student keeps their existing state and is RESYNCED
+//     (own cognitive state + any active mentorship re-sent to them).
+//   - A second connection for the same identity evicts the stale one.
+//   - Session cleanup waits out a grace period and respects a watching teacher.
 // ============================================
 
 import { Student } from '../../../domain/models/Student.js';
 import { Session } from '../../../domain/models/Session.js';
-import { SOCKET_INCOMING } from '../../../domain/events/DomainEvents.js';
 import { createComponentLogger } from '../../../utils/logger.js';
 
 const log = createComponentLogger('session-handler');
 
-/**
- * Registers session lifecycle event handlers on a socket.
- *
- * @param {import('socket.io').Socket} socket
- * @param {Object} deps
- * @param {Map<string, Session>} deps.activeSessions
- * @param {import('../../../infrastructure/db/SessionRepository.js').SessionRepository} deps.sessionRepository
- * @param {import('../../../infrastructure/queue/TraceBuffer.js').TraceBuffer} deps.traceBuffer
- * @param {import('socket.io').Server} deps.io
- */
-export function registerSessionHandler(socket, { activeSessions, sessionRepository, traceBuffer, io }) {
+const EMPTY_SESSION_GRACE_MS = 30_000;
+
+export function registerSessionHandler(
+  socket,
+  { activeSessions, sessionRepository, traceBuffer, io, socketRegistry, mentorshipUseCase }
+) {
   const { studentId, sessionId, role, displayName } = socket.data;
+  const teacherKey = `teacher-${sessionId}`;
 
-  // ── Auto-join on connection ──
-  // The socket auth middleware already validated these fields,
-  // so we can safely use them here.
   handleJoin();
+  socket.on('disconnect', (reason) => handleLeave(reason));
 
-  // ── Disconnect handler ──
-  socket.on('disconnect', (reason) => {
-    handleLeave(reason);
-  });
-
-  /**
-   * Handles a student joining a session.
-   */
-  function handleJoin() {
-    // Get or create the session
+  function getOrCreateSession() {
     let session = activeSessions.get(sessionId);
     if (!session) {
       session = new Session({ sessionId });
       activeSessions.set(sessionId, session);
       log.info({ sessionId }, 'New session created');
-
-      // Persist to Supabase (fire-and-forget)
-      sessionRepository.createSession({ sessionId, teacherId: role === 'teacher' ? studentId : null });
+      sessionRepository.createSession({
+        sessionId,
+        teacherId: role === 'teacher' ? studentId : null,
+      });
     }
+    return session;
+  }
 
-    // Create the student domain entity
-    const student = new Student({
-      studentId,
-      sessionId,
-      displayName,
-      state: 'idle',
-    });
+  // Evict any previous socket holding the same identity (e.g. a stale tab).
+  function evictPrevious() {
+    const prevSocketId = socketRegistry.register(sessionId, studentId, socket.id);
+    if (prevSocketId) {
+      const prev = io.sockets.sockets.get(prevSocketId);
+      if (prev) {
+        log.info({ studentId, prevSocketId }, 'Evicting previous socket for same identity');
+        prev.disconnect(true);
+      }
+    }
+  }
 
-    session.addStudent(student);
-
-    // Join the Socket.io room for this session
+  function handleJoin() {
+    const session = getOrCreateSession();
+    evictPrevious();
     socket.join(sessionId);
 
-    // Teachers get a separate room for dashboard-only events
     if (role === 'teacher') {
       socket.join(`teacher:${sessionId}`);
       session.teacherId = studentId;
+      log.info({ sessionId, displayName }, 'Teacher joined session');
+      // Send the current snapshot immediately to this teacher.
+      socket.emit('session:nodeMap', session.toNodeMap());
+      return;
+    }
+
+    // Preserve state across quick reconnects; only create fresh if unknown.
+    let student = session.getStudent(studentId);
+    if (!student) {
+      student = new Student({ studentId, sessionId, displayName, state: 'idle' });
+      session.addStudent(student);
     }
 
     log.info(
-      { studentId, sessionId, role, displayName, totalStudents: session.studentCount },
+      { studentId, sessionId, displayName, totalStudents: session.studentCount },
       'Student joined session'
     );
 
-    // Broadcast updated node map to the teacher
+    // ── Resync this (re)connecting client ──
+    socket.emit('cognitive:state', {
+      studentId: student.studentId,
+      state: student.state,
+      confidence: student.confidence,
+      blockagePoint: student.blockagePoint,
+    });
+    const activeMentorship = mentorshipUseCase.getActiveMentorshipForStudent(studentId, sessionId);
+    if (activeMentorship) {
+      socket.emit('mentorship:start', activeMentorship.toStartPayload());
+    }
+
+    // Refresh the teacher dashboard.
     io.to(`teacher:${sessionId}`).emit('session:nodeMap', session.toNodeMap());
   }
 
-  /**
-   * Handles a student leaving (disconnect or explicit leave).
-   * @param {string} reason
-   */
   function handleLeave(reason) {
     const session = activeSessions.get(sessionId);
-    if (!session) return;
 
-    // Remove from domain model
-    session.removeStudent(studentId);
+    // Only the CURRENT owner of this identity may tear down shared state —
+    // a superseded socket (replaced by a newer tab) must not remove the live one.
+    const isCurrent = socketRegistry.getSocketId(sessionId, studentId) === socket.id;
+    socketRegistry.unregister(sessionId, studentId, socket.id);
 
-    // Clean up trace buffer
-    traceBuffer.removeStudent(studentId, sessionId);
-
-    // Leave Socket.io rooms
     socket.leave(sessionId);
     socket.leave(`teacher:${sessionId}`);
 
+    if (!session) return;
+
+    if (role === 'teacher') {
+      log.info({ sessionId, reason }, 'Teacher left session');
+      maybeScheduleCleanup(session);
+      return;
+    }
+
+    if (!isCurrent) {
+      log.debug({ studentId }, 'Superseded socket left — keeping live student state');
+      return;
+    }
+
+    session.removeStudent(studentId);
+    traceBuffer.removeStudent(studentId, sessionId);
     log.info(
       { studentId, sessionId, reason, remainingStudents: session.studentCount },
       'Student left session'
     );
+    maybeScheduleCleanup(session);
+  }
 
-    // If the session is empty, clean it up after a grace period
-    if (session.studentCount === 0) {
-      setTimeout(() => {
-        const currentSession = activeSessions.get(sessionId);
-        if (currentSession && currentSession.studentCount === 0) {
-          activeSessions.delete(sessionId);
-          sessionRepository.endSession(sessionId);
-          log.info({ sessionId }, 'Empty session cleaned up');
-        }
-      }, 30_000); // 30s grace period for reconnections
-    } else {
-      // Update teacher dashboard
+  // Schedule deletion only when the room is truly empty (no students AND no
+  // teacher watching). Re-checks after the grace window to survive reconnects.
+  function maybeScheduleCleanup(session) {
+    const teacherPresent = Boolean(socketRegistry.getSocketId(sessionId, teacherKey));
+    if (session.studentCount > 0 || teacherPresent) {
       io.to(`teacher:${sessionId}`).emit('session:nodeMap', session.toNodeMap());
+      return;
     }
+    setTimeout(() => {
+      const current = activeSessions.get(sessionId);
+      const stillEmpty = current && current.studentCount === 0;
+      const stillNoTeacher = !socketRegistry.getSocketId(sessionId, teacherKey);
+      if (stillEmpty && stillNoTeacher) {
+        activeSessions.delete(sessionId);
+        sessionRepository.endSession(sessionId);
+        log.info({ sessionId }, 'Empty session cleaned up');
+      }
+    }, EMPTY_SESSION_GRACE_MS);
   }
 }

@@ -280,7 +280,7 @@ describe('MentorshipUseCase', () => {
       assert.strictEqual(activeMentorships.size, 0);
     });
 
-    it('should reset both students to idle after close', async () => {
+    it('should restore the mentor to flow and reset the mentee to idle after close', async () => {
       const session = new Session({ sessionId: SESSION_ID });
       session.addStudent(createBlockedStudent('s-blocked', SESSION_ID));
       session.addStudent(createFlowStudent('s-mentor', SESSION_ID));
@@ -292,10 +292,27 @@ describe('MentorshipUseCase', () => {
       const mentor = session.getStudent('s-mentor');
       const mentee = session.getStudent('s-blocked');
 
-      assert.strictEqual(mentor.state, 'idle');
+      // Mentor returns to the mentor pool (flow), mentee starts clean (idle).
+      assert.strictEqual(mentor.state, 'flow');
       assert.strictEqual(mentor.activeMentorshipId, null);
       assert.strictEqual(mentee.state, 'idle');
       assert.strictEqual(mentee.activeMentorshipId, null);
+    });
+
+    it('should emit authoritative cognitive:state for both participants on close', async () => {
+      const session = new Session({ sessionId: SESSION_ID });
+      session.addStudent(createBlockedStudent('s-blocked', SESSION_ID));
+      session.addStudent(createFlowStudent('s-mentor', SESSION_ID));
+      activeSessions.set(SESSION_ID, session);
+
+      const mentorship = await useCase.attemptMatch(SESSION_ID, 's-blocked');
+      mockIO.emitted.length = 0;
+      await useCase.closeMentorship(mentorship.mentorshipId, 's-blocked', 'resolved');
+
+      const stateEvents = mockIO.emitted.filter((e) => e.event === 'cognitive:state');
+      const ids = stateEvents.map((e) => e.payload.studentId);
+      assert.ok(ids.includes('s-mentor'), 'cognitive:state should be emitted for the mentor');
+      assert.ok(ids.includes('s-blocked'), 'cognitive:state should be emitted for the mentee');
     });
 
     it('should emit mentorship:ended event', async () => {
@@ -340,6 +357,42 @@ describe('MentorshipUseCase', () => {
     it('should handle closing a non-existent mentorship gracefully', async () => {
       // Should not throw
       await useCase.closeMentorship('non-existent-id', 'student-1', 'manual');
+    });
+  });
+
+  // ── lookups (used by handlers & reconnect resync) ──
+
+  describe('lookups', () => {
+    it('getMentorship returns the active mentorship by id', async () => {
+      const session = new Session({ sessionId: SESSION_ID });
+      session.addStudent(createBlockedStudent('s-blocked', SESSION_ID));
+      session.addStudent(createFlowStudent('s-mentor', SESSION_ID));
+      activeSessions.set(SESSION_ID, session);
+
+      const mentorship = await useCase.attemptMatch(SESSION_ID, 's-blocked');
+      assert.strictEqual(useCase.getMentorship(mentorship.mentorshipId), mentorship);
+      assert.strictEqual(useCase.getMentorship('nope'), undefined);
+    });
+
+    it('getActiveMentorshipForStudent finds the pair for either participant', async () => {
+      const session = new Session({ sessionId: SESSION_ID });
+      session.addStudent(createBlockedStudent('s-blocked', SESSION_ID));
+      session.addStudent(createFlowStudent('s-mentor', SESSION_ID));
+      activeSessions.set(SESSION_ID, session);
+
+      const mentorship = await useCase.attemptMatch(SESSION_ID, 's-blocked');
+      assert.strictEqual(
+        useCase.getActiveMentorshipForStudent('s-mentor', SESSION_ID),
+        mentorship
+      );
+      assert.strictEqual(
+        useCase.getActiveMentorshipForStudent('s-blocked', SESSION_ID),
+        mentorship
+      );
+      assert.strictEqual(
+        useCase.getActiveMentorshipForStudent('ghost', SESSION_ID),
+        null
+      );
     });
   });
 });

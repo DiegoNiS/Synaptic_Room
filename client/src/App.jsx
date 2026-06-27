@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useParams, useSearchParams, Navigate } fr
 import LandingPage from './pages/LandingPage';
 import StudentView from './pages/StudentView';
 import TeacherView from './pages/TeacherView';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ── Student route wrapper — extracts URL params ──
 function StudentRoute() {
@@ -45,14 +46,16 @@ function TeacherRoute() {
 // ── Root App ──
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/student/:studentId" element={<StudentRoute />} />
-        <Route path="/teacher" element={<TeacherRoute />} />
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/student/:studentId" element={<StudentRoute />} />
+          <Route path="/teacher" element={<TeacherRoute />} />
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

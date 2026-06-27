@@ -27,7 +27,7 @@ const PALETTE = ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#ec4899', '#ffffff
 
 let boxIdCounter = 1;
 
-export default function Canvas({ onTrace, disabled = false }) {
+export default function Canvas({ onTrace, disabled = false, onDrawEvent, incomingStrokes = [] }) {
   const [selectedChallenge, setSelectedChallenge] = useState(CHALLENGES[0]);
 
   // ── Drawing state ────────────────────────────────────────────────────────
@@ -46,6 +46,9 @@ export default function Canvas({ onTrace, disabled = false }) {
 
   // ── Metrics tracker ──────────────────────────────────────────────────────
   const { recordKeystroke, recordPaste, updateTextSnapshot } = useTracker(onTrace, 2000);
+
+  // ── Track last drawing point for stroke emission ────────────────────────
+  const lastPointRef = useRef(null);
 
   // ── Canvas initialisation ────────────────────────────────────────────────
   useEffect(() => {
@@ -83,12 +86,13 @@ export default function Canvas({ onTrace, disabled = false }) {
     updateTextSnapshot(combined);
   }, [textBoxes, updateTextSnapshot]);
 
-  // ── Drawing handlers ─────────────────────────────────────────────────────
+  // ── Drawing handlers (with WebSocket stroke emission) ────────────────────
   const startDrawing = useCallback(({ nativeEvent }) => {
     if (disabled || tool === 'text') return;
     const { offsetX, offsetY } = nativeEvent;
     contextRef.current.beginPath();
     contextRef.current.moveTo(offsetX, offsetY);
+    lastPointRef.current = { x: offsetX, y: offsetY };
     setIsDrawing(true);
   }, [disabled, tool]);
 
@@ -97,13 +101,59 @@ export default function Canvas({ onTrace, disabled = false }) {
     const { offsetX, offsetY } = nativeEvent;
     contextRef.current.lineTo(offsetX, offsetY);
     contextRef.current.stroke();
-  }, [isDrawing, disabled, tool]);
+
+    // Emit stroke to partner via WebSocket
+    if (onDrawEvent && lastPointRef.current) {
+      onDrawEvent({
+        x0: lastPointRef.current.x,
+        y0: lastPointRef.current.y,
+        x1: offsetX,
+        y1: offsetY,
+        color: tool === 'eraser' ? '#0d0f15' : color,
+        brushSize: tool === 'eraser' ? brushSize * 4 : brushSize,
+        tool,
+      });
+    }
+    lastPointRef.current = { x: offsetX, y: offsetY };
+  }, [isDrawing, disabled, tool, color, brushSize, onDrawEvent]);
 
   const stopDrawing = useCallback(() => {
     if (!isDrawing) return;
     contextRef.current?.closePath();
+    lastPointRef.current = null;
     setIsDrawing(false);
   }, [isDrawing]);
+
+  // ── Render incoming strokes from the mentorship partner ─────────────────
+  // Draws every stroke not yet rendered (robust to React batching multiple
+  // socket events into one update) and resets when the buffer is cleared.
+  const drawnCountRef = useRef(0);
+  useEffect(() => {
+    const ctx = contextRef.current;
+    if (!ctx) return;
+
+    // Buffer was reset (new/ended mentorship) → start over.
+    if (incomingStrokes.length < drawnCountRef.current) {
+      drawnCountRef.current = 0;
+    }
+
+    const prevStroke = ctx.strokeStyle;
+    const prevWidth = ctx.lineWidth;
+    for (let i = drawnCountRef.current; i < incomingStrokes.length; i++) {
+      const s = incomingStrokes[i];
+      if (!s) continue;
+      ctx.strokeStyle = s.color || '#6366f1';
+      ctx.lineWidth = s.brushSize || 3;
+      ctx.beginPath();
+      ctx.moveTo(s.x0, s.y0);
+      ctx.lineTo(s.x1, s.y1);
+      ctx.stroke();
+      ctx.closePath();
+    }
+    ctx.strokeStyle = prevStroke;
+    ctx.lineWidth = prevWidth;
+    drawnCountRef.current = incomingStrokes.length;
+  }, [incomingStrokes]);
 
   const handleCanvasClick = useCallback(({ nativeEvent }) => {
     if (tool !== 'text' || disabled) return;
@@ -289,7 +339,7 @@ export default function Canvas({ onTrace, disabled = false }) {
                 }}
               >
                 {icon}
-                <span style={{ display: 'none', '@media(minWidth:700px)': { display: 'inline' } }}>{label}</span>
+                <span>{label}</span>
               </button>
             ))}
           </div>

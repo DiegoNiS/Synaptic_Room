@@ -35,6 +35,8 @@ export class Student {
     blockagePoint = null,
     activeMentorshipId = null,
     stateChangedAt = Date.now(),
+    preMentorshipState = null,
+    preMentorshipConfidence = 0,
   }) {
     this.studentId = studentId;
     this.sessionId = sessionId;
@@ -44,6 +46,10 @@ export class Student {
     this.blockagePoint = blockagePoint;
     this.activeMentorshipId = activeMentorshipId;
     this.stateChangedAt = stateChangedAt;
+    // Snapshot of the state held just before entering a mentorship, so a
+    // mentor can be restored to 'flow' (and the mentor pool) afterwards.
+    this.preMentorshipState = preMentorshipState;
+    this.preMentorshipConfidence = preMentorshipConfidence;
   }
 
   /**
@@ -74,21 +80,35 @@ export class Student {
       ...this,
       state: 'mentoring',
       activeMentorshipId: mentorshipId,
+      // Remember what to return to (a mentor was typically in 'flow').
+      preMentorshipState: this.state,
+      preMentorshipConfidence: this.confidence,
       stateChangedAt: Date.now(),
     });
   }
 
   /**
-   * Clears the mentorship and reverts to idle.
+   * Clears the mentorship.
+   * @param {Object} [opts]
+   * @param {boolean} [opts.restore=false] - If true, restore the pre-mentorship
+   *   state (used for mentors, so a strong student re-enters the mentor pool).
+   *   If false, revert to a clean idle (used for the mentee).
    * @returns {Student}
    */
-  withMentorshipCleared() {
+  withMentorshipCleared({ restore = false } = {}) {
+    const restoredState =
+      this.preMentorshipState && this.preMentorshipState !== 'mentoring'
+        ? this.preMentorshipState
+        : 'flow';
+
     return new Student({
       ...this,
-      state: 'idle',
+      state: restore ? restoredState : 'idle',
+      confidence: restore ? this.preMentorshipConfidence : 0,
       activeMentorshipId: null,
-      confidence: 0,
       blockagePoint: null,
+      preMentorshipState: null,
+      preMentorshipConfidence: 0,
       stateChangedAt: Date.now(),
     });
   }
@@ -131,6 +151,8 @@ export class Student {
       displayName: this.displayName,
       state: this.state,
       confidence: this.confidence,
+      blockagePoint: this.blockagePoint,
+      timeInState: this.timeInCurrentState(),
       connections: this.activeMentorshipId ? [this.activeMentorshipId] : [],
     };
   }

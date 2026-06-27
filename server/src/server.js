@@ -51,19 +51,8 @@ const agentClient = new AgentClient();
 const sessionRepository = new SessionRepository();
 
 // ============================================
-// 3. HTTP SERVER & SOCKET.IO
+// 3. APPLICATION LAYER (Use Cases)
 // ============================================
-const app = createApp({ agentClient, traceBuffer: null, activeSessions }); // traceBuffer injected after creation
-const httpServer = createServer(app);
-
-// Socket.io needs to be created before use cases (they emit events)
-// We'll create it now and pass the `io` instance to the use cases
-
-// ============================================
-// 4. APPLICATION LAYER (Use Cases)
-// ============================================
-// MentorshipUseCase is created first because TraceAnalysisUseCase depends on it
-
 const mentorshipUseCase = new MentorshipUseCase({
   activeSessions,
   activeMentorships,
@@ -85,6 +74,12 @@ const traceBuffer = new TraceBuffer({
   onFlush: (studentId, sessionId, aggregatedMetrics) =>
     traceAnalysisUseCase.execute(studentId, sessionId, aggregatedMetrics),
 });
+
+// ============================================
+// 4. HTTP SERVER & SOCKET.IO
+// ============================================
+const app = createApp({ agentClient, traceBuffer, activeSessions });
+const httpServer = createServer(app);
 
 // ============================================
 // 5. SOCKET.IO (Interfaces Layer)
@@ -143,7 +138,8 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Catch unhandled rejections (prevents silent crashes in production)
 process.on('unhandledRejection', (reason, promise) => {
-  log.fatal({ reason, promise }, 'UNHANDLED REJECTION — this is a bug!');
+  const errorDetails = reason instanceof Error ? { message: reason.message, stack: reason.stack } : { reason };
+  log.fatal({ error: errorDetails, promise }, 'UNHANDLED REJECTION — this is a bug!');
 });
 
 process.on('uncaughtException', (error) => {

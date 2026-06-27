@@ -64,6 +64,7 @@ export function registerTraceHandler(socket, { traceBuffer }) {
         pauseDurationMs: metrics.pauseDurationMs || 0,
         deletionCount: metrics.deletionCount || 0,
         keystrokeCount: metrics.keystrokeCount,
+        pasteCount: metrics.pasteCount || 0, // Needed by the fraud/plagiarism heuristic
         textSnapshot: (metrics.textSnapshot || '').slice(-200), // Cap at 200 chars
       });
     } catch (error) {

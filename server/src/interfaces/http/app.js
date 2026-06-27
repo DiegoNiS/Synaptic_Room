@@ -12,7 +12,9 @@ import cors from 'cors';
 import { getCorsOptions } from '../../config/cors.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { rateLimit } from './middleware/rateLimit.js';
 import { createHealthRouter } from './routes/health.js';
+import { createAuthRouter } from './routes/auth.js';
 
 /**
  * Creates and configures the Express application.
@@ -32,6 +34,8 @@ export function createApp({ agentClient, traceBuffer, activeSessions }) {
 
   // ── Routes ──
   app.use('/health', createHealthRouter({ agentClient, traceBuffer, activeSessions }));
+  // Token issuance is rate-limited (auth endpoint = abuse target).
+  app.use('/api/auth', rateLimit({ windowMs: 60_000, max: 30 }), createAuthRouter());
 
   // ── Global Error Handler (must be last) ──
   app.use(errorHandler);

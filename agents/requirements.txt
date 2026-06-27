@@ -1,6 +1,7 @@
-fastapi
-uvicorn
-google-generativeai
-pydantic
-python-dotenv
-
+# Pinned to compatible minimums for reproducible builds.
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+# >=0.8 is required for native Pydantic response_schema (structured output).
+google-generativeai>=0.8.0,<1.0
+pydantic>=2.7,<3.0
+python-dotenv>=1.0,<2.0

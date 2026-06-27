@@ -31,18 +31,38 @@ export class AgentClient {
     this.baseUrl = options.baseUrl || env.AI_AGENT_BASE_URL;
     this.timeoutMs = options.timeoutMs || env.AI_AGENT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries || env.AI_AGENT_MAX_RETRIES;
+    this.apiKey = options.apiKey || env.AGENT_API_KEY;
 
-    // One circuit breaker per client instance
-    this.circuitBreaker = new CircuitBreaker({
-      name: 'ai-agent',
+    // Independent circuit breakers per endpoint: a flaky /match-mentor must
+    // not blackout /analyze (they are separate failure domains).
+    this.analyzeBreaker = new CircuitBreaker({
+      name: 'ai-analyze',
+      failureThreshold: env.CB_FAILURE_THRESHOLD,
+      resetTimeoutMs: env.CB_RESET_TIMEOUT_MS,
+    });
+    this.matchBreaker = new CircuitBreaker({
+      name: 'ai-match',
       failureThreshold: env.CB_FAILURE_THRESHOLD,
       resetTimeoutMs: env.CB_RESET_TIMEOUT_MS,
     });
 
     log.info(
-      { baseUrl: this.baseUrl, timeoutMs: this.timeoutMs, maxRetries: this.maxRetries },
+      { baseUrl: this.baseUrl, timeoutMs: this.timeoutMs, maxRetries: this.maxRetries, authenticated: Boolean(this.apiKey) },
       'AI Agent client initialized'
     );
+  }
+
+  /**
+   * Retry policy shared by both endpoints. Never retries 4xx (our fault) or
+   * TIMEOUT (the request may still be running server-side — retrying just
+   * amplifies cost and load on an already-slow service).
+   * @param {Error} err
+   * @returns {boolean}
+   */
+  _shouldRetry(err) {
+    if (err.code === 'TIMEOUT') return false;
+    if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) return false;
+    return true;
   }
 
   /**
@@ -60,7 +80,7 @@ export class AgentClient {
     const startTime = Date.now();
 
     try {
-      const result = await this.circuitBreaker.execute(() =>
+      const result = await this.analyzeBreaker.execute(() =>
         retryWithBackoff(
           () => this._postWithTimeout('/analyze', tracePayload),
           {
@@ -68,13 +88,7 @@ export class AgentClient {
             baseDelayMs: 500,
             maxDelayMs: 3000,
             operationName: `analyze(${tracePayload.studentId})`,
-            shouldRetry: (err) => {
-              // Don't retry client errors (4xx) — those are our fault
-              if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
-                return false;
-              }
-              return true;
-            },
+            shouldRetry: (err) => this._shouldRetry(err),
           }
         )
       );
@@ -107,61 +121,41 @@ export class AgentClient {
   }
 
   /**
-   * Calls Cognitive Mesh to find a mentor.
-   * @param {string} blockedStudentId
-   * @param {string} sessionId
-   * @param {string[]} availableMentors
-   * @returns {Promise<Object>} Match result
+   * Calls Cognitive Mesh to find the best mentor using enriched profiles.
+   *
+   * @param {Object} matchPayload
+   * @param {string} matchPayload.blockedStudentId
+   * @param {string} matchPayload.sessionId
+   * @param {string|null} matchPayload.blockagePoint
+   * @param {Array<{id: string, displayName: string, confidence: number, timeInFlowMs: number, currentChallenge: string|null}>} matchPayload.availableMentors
+   * @returns {Promise<Object>} Match result with mentorId, blockedId, matchScore
    */
-  async matchMentor(blockedStudentId, sessionId, availableMentors) {
+  async matchMentor(matchPayload) {
     const startTime = Date.now();
     try {
-      const payload = { blockedStudentId, sessionId, availableMentors };
-      const result = await this.circuitBreaker.execute(() =>
+      const result = await this.matchBreaker.execute(() =>
         retryWithBackoff(
-          () => this._postWithTimeout('/match-mentor', payload),
+          () => this._postWithTimeout('/match-mentor', matchPayload),
           {
             maxRetries: this.maxRetries,
             baseDelayMs: 500,
             maxDelayMs: 3000,
-            operationName: `matchMentor(${blockedStudentId})`,
-            shouldRetry: (err) => {
-              // Don't retry client errors (4xx)
-              if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
-                return false;
-              }
-              return true;
-            },
+            operationName: `matchMentor(${matchPayload.blockedStudentId})`,
+            shouldRetry: (err) => this._shouldRetry(err),
           }
         )
       );
 
       const latencyMs = Date.now() - startTime;
       log.info(
-        { blockedStudentId, latencyMs, mentorId: result?.mentorId, matchScore: result?.matchScore },
+        { blockedStudentId: matchPayload.blockedStudentId, latencyMs, mentorId: result?.mentorId, matchScore: result?.matchScore },
         'AI mentor matchmaking completed'
       );
       return result;
     } catch (error) {
-      log.error({ err: error, blockedStudentId }, 'Cognitive Mesh matchmaking failed');
-      return { mentorId: 'none', blockedId: blockedStudentId, matchScore: 0 };
+      log.error({ err: error, blockedStudentId: matchPayload.blockedStudentId }, 'Cognitive Mesh matchmaking failed');
+      return { mentorId: 'none', blockedId: matchPayload.blockedStudentId, matchScore: 0 };
     }
-  }
-
-  /**
-   * Asks the Cognitive Mesh AI to match a blocked student with the best mentor
-   * and generate Socratic mentorship instructions based on the blockage point.
-   *
-   * @param {Object} matchPayload
-   * @param {string} matchPayload.blocked_student_id
-   * @param {string} matchPayload.session_id
-   * @param {string[]} matchPayload.available_mentors
-   * @param {string} matchPayload.blockage_point
-   * @param {string} matchPayload.text_snapshot
-   * @returns {Promise<Object>} The mentorship match result
-   */
-  async matchMentor(matchPayload) {
-    return this._postWithTimeout('/match-mentor', matchPayload);
   }
 
   /**
@@ -177,9 +171,11 @@ export class AgentClient {
 
     try {
       const url = `${this.baseUrl}${path}`;
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.apiKey) headers['X-Agent-Key'] = this.apiKey;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -233,9 +229,10 @@ export class AgentClient {
    * @returns {Promise<boolean>}
    */
   async isHealthy() {
+    let timeoutId;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      timeoutId = setTimeout(() => controller.abort(), 2000);
 
       const response = await fetch(`${this.baseUrl}/health`, {
         signal: controller.signal,
@@ -244,7 +241,7 @@ export class AgentClient {
     } catch {
       return false;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -255,7 +252,10 @@ export class AgentClient {
   getStatus() {
     return {
       baseUrl: this.baseUrl,
-      circuitBreaker: this.circuitBreaker.getStatus(),
+      circuitBreakers: {
+        analyze: this.analyzeBreaker.getStatus(),
+        match: this.matchBreaker.getStatus(),
+      },
     };
   }
 }

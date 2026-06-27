@@ -1,217 +1,217 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { initSocket, getSocket, disconnectSocket } from '../socket';
 
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+
 /**
- * Custom React hook to manage the lifecycle and real-time state of the Socket.io connection.
- * Supports student views (cognitive states, mentorships) and teacher views (node maps).
- * 
- * @param {Object} auth - Credentials for Socket.io handshake
- * @param {string} [auth.studentId]
- * @param {string} [auth.sessionId]
- * @param {string} [auth.role]
- * @param {string} [auth.displayName]
+ * Requests a signed join token from the server. When auth is enabled the token
+ * authorizes the socket handshake; in dev the server returns token:null and the
+ * socket connects with raw identity. Returns the resolved identity to use.
+ */
+async function requestJoinToken(auth) {
+  const resp = await fetch(`${SERVER_URL}/api/auth/join`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: auth.sessionId,
+      role: auth.role,
+      displayName: auth.displayName,
+      studentId: auth.studentId,
+      passcode: auth.passcode,
+    }),
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    const err = new Error(body.error || `Auth failed (${resp.status})`);
+    err.status = resp.status;
+    throw err;
+  }
+  return resp.json();
+}
+
+/**
+ * Manages the Socket.io lifecycle and real-time state for both student and
+ * teacher views.
+ * @param {Object} auth - { studentId, sessionId, role, displayName, passcode? }
  */
 export function useSocket(auth) {
   const [connected, setConnected] = useState(false);
   const [socketError, setSocketError] = useState(null);
-  const [cognitiveState, setCognitiveState] = useState({
-    state: 'idle',
-    confidence: 0,
-    blockagePoint: null,
-  });
+  const [cognitiveState, setCognitiveState] = useState({ state: 'idle', confidence: 0, blockagePoint: null });
   const [activeMentorship, setActiveMentorship] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
+  const [incomingStrokes, setIncomingStrokes] = useState([]);
   const [nodeMap, setNodeMap] = useState({ nodes: [], sessionId: '', updatedAt: 0 });
   const [aiError, setAiError] = useState(null);
   const [aiErrors, setAiErrors] = useState({});
 
-  // Initialize Socket.io
+  // The server-resolved identity (used for matching incoming events).
+  const myIdRef = useRef(auth?.studentId);
+
   useEffect(() => {
-    if (!auth || !auth.studentId || !auth.sessionId || !auth.displayName) {
-      return;
-    }
+    if (!auth || !auth.sessionId || !auth.displayName) return;
 
-    const socket = initSocket(auth);
+    let cancelled = false;
+    let socket = null;
 
-    const onConnect = () => {
-      setConnected(true);
-      setSocketError(null);
-    };
-
-    const onDisconnect = () => {
-      setConnected(false);
-    };
-
-    const onConnectError = (err) => {
-      setConnected(false);
-      setSocketError(err.message || 'Connection failed');
-    };
-
-    const onSessionError = (err) => {
-      setSocketError(err.message || 'Session error');
-    };
-
-    // Listeners for Student
-    const onCognitiveState = (data) => {
-      // Only care if it matches the current student's state
-      if (data.studentId === auth.studentId) {
-        setCognitiveState({
-          state: data.state,
-          confidence: data.confidence,
-          blockagePoint: data.blockagePoint,
-        });
+    (async () => {
+      // 1. Resolve identity + token (graceful fallback if the endpoint is down).
+      let connectAuth = { ...auth };
+      try {
+        const identity = await requestJoinToken(auth);
+        connectAuth = {
+          studentId: identity.studentId,
+          sessionId: identity.sessionId,
+          role: identity.role,
+          displayName: identity.displayName,
+          token: identity.token,
+        };
+      } catch (err) {
+        if (err.status === 403) {
+          if (!cancelled) setSocketError(err.message || 'Acceso denegado');
+          return; // Do not connect on an authorization failure.
+        }
+        // Network/endpoint failure → connect with raw identity (dev fallback).
+        console.warn('[useSocket] token request failed, connecting without token:', err.message);
       }
-    };
+      if (cancelled) return;
 
-    const onMentorshipStart = (payload) => {
-      // Check if current student is involved (either as mentor or mentee)
-      const isMentor = payload.mentor.studentId === auth.studentId;
-      const isMentee = payload.mentee.studentId === auth.studentId;
+      const myId = connectAuth.studentId;
+      myIdRef.current = myId;
+      socket = initSocket(connectAuth);
 
-      if (isMentor || isMentee) {
-        setActiveMentorship({
-          ...payload,
-          role: isMentor ? 'mentor' : 'mentee',
-          partnerName: isMentor ? payload.mentee.displayName : payload.mentor.displayName,
-          partnerId: isMentor ? payload.mentee.studentId : payload.mentor.studentId,
-        });
-        setChatMessages([]);
-      }
-    };
+      const onConnect = () => { setConnected(true); setSocketError(null); };
+      const onDisconnect = () => setConnected(false);
+      const onConnectError = (err) => { setConnected(false); setSocketError(err.message || 'Connection failed'); };
+      const onSessionError = (err) => setSocketError(err.message || 'Session error');
 
-    const onMentorshipEnded = (payload) => {
-      setActiveMentorship((current) => {
-        if (current && current.mentorshipId === payload.mentorshipId) {
-          // Revert cognitive state dynamically
-          setCognitiveState(prev => ({
-            ...prev,
-            state: 'idle',
-            confidence: 0,
-            blockagePoint: null,
-          }));
+      const onCognitiveState = (data) => {
+        if (data.studentId === myId) {
+          setCognitiveState({ state: data.state, confidence: data.confidence, blockagePoint: data.blockagePoint });
+        }
+      };
+
+      const onMentorshipStart = (payload) => {
+        const isMentor = payload.mentor.studentId === myId;
+        const isMentee = payload.mentee.studentId === myId;
+        if (isMentor || isMentee) {
+          setActiveMentorship({
+            ...payload,
+            role: isMentor ? 'mentor' : 'mentee',
+            partnerName: isMentor ? payload.mentee.displayName : payload.mentor.displayName,
+            partnerId: isMentor ? payload.mentee.studentId : payload.mentor.studentId,
+          });
           setChatMessages([]);
-          return null;
+          setIncomingStrokes([]);
         }
-        return current;
-      });
-    };
+      };
 
-    const onMentorshipMessage = (payload) => {
-      setActiveMentorship((current) => {
-        if (current && current.mentorshipId === payload.mentorshipId) {
-          setChatMessages((prev) => [...prev, payload]);
-        }
-        return current;
-      });
-    };
-
-    // Listeners for Teacher
-    const onSessionNodeMap = (data) => {
-      if (auth.role === 'teacher') {
-        setNodeMap(data);
-      }
-    };
-
-    const onAiError = (data) => {
-      if (auth.role === 'teacher') {
-        setAiErrors((prev) => ({ ...prev, [data.studentId]: data.message }));
-      } else if (data.studentId === auth.studentId) {
-        setAiError(data.message);
-      }
-    };
-
-    const onAiClearError = (data) => {
-      if (auth.role === 'teacher') {
-        setAiErrors((prev) => {
-          const next = { ...prev };
-          delete next[data.studentId];
-          return next;
+      const onMentorshipEnded = (payload) => {
+        setActiveMentorship((current) => {
+          if (current && current.mentorshipId === payload.mentorshipId) {
+            setChatMessages([]);
+            setIncomingStrokes([]);
+            return null;
+          }
+          return current;
         });
-      } else if (data.studentId === auth.studentId) {
-        setAiError(null);
-      }
-    };
+        // Server also emits an authoritative cognitive:state; this is a fast local revert.
+      };
 
-    // Register events
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect_error', onConnectError);
-    socket.on('session:error', onSessionError);
-    socket.on('cognitive:state', onCognitiveState);
-    socket.on('mentorship:start', onMentorshipStart);
-    socket.on('mentorship:ended', onMentorshipEnded);
-    socket.on('mentorship:message', onMentorshipMessage);
-    socket.on('session:nodeMap', onSessionNodeMap);
-    socket.on('ai:error', onAiError);
-    socket.on('ai:clear-error', onAiClearError);
+      const onMentorshipMessage = (payload) => {
+        setActiveMentorship((current) => {
+          if (current && current.mentorshipId === payload.mentorshipId) {
+            setChatMessages((prev) => [...prev, payload]);
+          }
+          return current;
+        });
+      };
 
-    // Initial connection state check
-    if (socket.connected) {
-      onConnect();
-    }
+      const onMentorshipDraw = (payload) => {
+        setActiveMentorship((current) => {
+          if (current && current.mentorshipId === payload.mentorshipId && payload.stroke) {
+            setIncomingStrokes((prev) => [...prev, payload.stroke]);
+          }
+          return current;
+        });
+      };
 
-    // Cleanup on unmount
+      const onSessionNodeMap = (data) => {
+        if (connectAuth.role === 'teacher') setNodeMap(data);
+      };
+
+      const onAiError = (data) => {
+        if (connectAuth.role === 'teacher') setAiErrors((prev) => ({ ...prev, [data.studentId]: data.message }));
+        else if (data.studentId === myId) setAiError(data.message);
+      };
+      const onAiClearError = (data) => {
+        if (connectAuth.role === 'teacher') {
+          setAiErrors((prev) => { const next = { ...prev }; delete next[data.studentId]; return next; });
+        } else if (data.studentId === myId) setAiError(null);
+      };
+
+      socket.on('connect', onConnect);
+      socket.on('disconnect', onDisconnect);
+      socket.on('connect_error', onConnectError);
+      socket.on('session:error', onSessionError);
+      socket.on('cognitive:state', onCognitiveState);
+      socket.on('mentorship:start', onMentorshipStart);
+      socket.on('mentorship:ended', onMentorshipEnded);
+      socket.on('mentorship:message', onMentorshipMessage);
+      socket.on('mentorship:draw', onMentorshipDraw);
+      socket.on('session:nodeMap', onSessionNodeMap);
+      socket.on('ai:error', onAiError);
+      socket.on('ai:clear-error', onAiClearError);
+
+      if (socket.connected) onConnect();
+    })();
+
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect_error', onConnectError);
-      socket.off('session:error', onSessionError);
-      socket.off('cognitive:state', onCognitiveState);
-      socket.off('mentorship:start', onMentorshipStart);
-      socket.off('mentorship:ended', onMentorshipEnded);
-      socket.off('mentorship:message', onMentorshipMessage);
-      socket.off('session:nodeMap', onSessionNodeMap);
-      socket.off('ai:error', onAiError);
-      socket.off('ai:clear-error', onAiClearError);
+      cancelled = true;
       disconnectSocket();
+      setConnected(false);
     };
   }, [auth?.studentId, auth?.sessionId, auth?.role, auth?.displayName]);
 
-  // Send keystroke trace
   const sendTrace = useCallback((metrics) => {
     const socket = getSocket();
     if (socket && socket.connected) {
-      socket.emit('student:trace', {
-        timestamp: Date.now(),
-        metrics,
-      });
+      socket.emit('student:trace', { timestamp: Date.now(), metrics });
     }
   }, []);
 
-  // Send message in active mentorship chat
   const sendChatMessage = useCallback((messageText) => {
     const socket = getSocket();
     if (socket && socket.connected && activeMentorship) {
-      const payload = {
+      socket.emit('mentorship:message', {
         mentorshipId: activeMentorship.mentorshipId,
         message: messageText,
         targetStudentId: activeMentorship.partnerId,
-      };
-      
-      socket.emit('mentorship:message', payload);
-
-      // Append own message locally
+      });
       setChatMessages((prev) => [
         ...prev,
         {
           mentorshipId: activeMentorship.mentorshipId,
-          from: auth.studentId,
+          from: myIdRef.current,
           fromName: auth.displayName,
           message: messageText,
           timestamp: Date.now(),
         },
       ]);
     }
-  }, [activeMentorship, auth]);
+  }, [activeMentorship, auth?.displayName]);
 
-  // Request to close active mentorship
+  const sendDraw = useCallback((stroke) => {
+    const socket = getSocket();
+    if (socket && socket.connected && activeMentorship) {
+      socket.emit('mentorship:draw', { mentorshipId: activeMentorship.mentorshipId, stroke });
+    }
+  }, [activeMentorship]);
+
   const closeMentorship = useCallback((reason = 'resolved') => {
     const socket = getSocket();
     if (socket && socket.connected && activeMentorship) {
-      socket.emit('mentorship:close', {
-        mentorshipId: activeMentorship.mentorshipId,
-        reason,
-      });
+      socket.emit('mentorship:close', { mentorshipId: activeMentorship.mentorshipId, reason });
     }
   }, [activeMentorship]);
 
@@ -221,11 +221,13 @@ export function useSocket(auth) {
     cognitiveState,
     activeMentorship,
     chatMessages,
+    incomingStrokes,
     nodeMap,
     aiError,
     aiErrors,
     sendTrace,
     sendChatMessage,
+    sendDraw,
     closeMentorship,
   };
 }

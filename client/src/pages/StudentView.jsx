@@ -17,9 +17,11 @@ export default function StudentView({ studentId, sessionId, displayName }) {
     cognitiveState,
     activeMentorship,
     chatMessages,
+    incomingStrokes,
     aiError,
     sendTrace,
     sendChatMessage,
+    sendDraw,
     closeMentorship,
   } = useSocket(auth);
 
@@ -231,16 +233,20 @@ export default function StudentView({ studentId, sessionId, displayName }) {
       )}
 
       {/* ── Main workspace ───────────────────────────────────────────────── */}
-      <main style={{
-        flex: 1,
-        padding: '16px 20px 20px',
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        overflow: 'hidden',
-      }}>
-        <Canvas onTrace={handleTrace} disabled={false} />
-      </main>
+      {/* Rendered only when NOT mentoring, so exactly one Canvas (and one
+          keystroke tracker) is ever mounted at a time. */}
+      {!activeMentorship && (
+        <main style={{
+          flex: 1,
+          padding: '16px 20px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'hidden',
+        }}>
+          <Canvas onTrace={handleTrace} disabled={false} />
+        </main>
+      )}
 
       {/* ── Mentorship overlay ───────────────────────────────────────────── */}
       {activeMentorship && (
@@ -249,12 +255,14 @@ export default function StudentView({ studentId, sessionId, displayName }) {
           chatMessages={chatMessages}
           onSendMessage={sendChatMessage}
           onClose={closeMentorship}
-          studentId={studentId}
+          studentId={auth.studentId}
           displayName={displayName}
           workspaceContent={
             <Canvas
               onTrace={activeMentorship.role === 'mentee' ? handleTrace : () => {}}
               disabled={activeMentorship.role === 'mentor'}
+              onDrawEvent={sendDraw}
+              incomingStrokes={incomingStrokes}
             />
           }
         />

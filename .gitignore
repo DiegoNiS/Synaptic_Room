@@ -21,9 +21,11 @@ Thumbs.db
 # --------------------------------------------
 # Environment Variables (Security)
 # --------------------------------------------
+# Ignore every real env file at any depth, but always keep the templates.
 .env
-.env.*.local
-.env.local
+.env.*
+!.env.example
+!**/.env.example
 
 # --------------------------------------------
 # Logs

@@ -1,63 +1,67 @@
 // ============================================
 // Synaptic Room — Socket Authentication Middleware
 // ============================================
-// Validates every incoming socket connection
-// during the handshake phase. In a production system,
-// this would verify JWT tokens. For the hackathon MVP,
-// it validates the presence of required connection params.
+// Runs during the Socket.io handshake.
+//
+// When JOIN_TOKEN_SECRET is configured (always in production), the client
+// MUST present a signed join token (issued by POST /api/auth/join). The
+// trusted identity is derived FROM the token — never from raw client fields —
+// which prevents impersonating another student or self-promoting to teacher.
+//
+// When no secret is configured (local dev), it falls back to presence
+// validation of the handshake fields and logs a loud warning.
 // ============================================
 
+import { verifyJoinToken, isAuthConfigured } from '../../../utils/tokenService.js';
 import { createComponentLogger } from '../../../utils/logger.js';
 
 const log = createComponentLogger('socket-auth');
+const VALID_ROLES = ['student', 'teacher'];
 
-/**
- * Socket.io middleware that runs on every new connection attempt.
- * Validates that the client provides required authentication data.
- *
- * Expected handshake auth object from Maxs's frontend:
- * {
- *   studentId: string,
- *   sessionId: string,
- *   role: 'student' | 'teacher',
- *   displayName: string
- * }
- *
- * @param {import('socket.io').Socket} socket
- * @param {Function} next
- */
 export function socketAuthMiddleware(socket, next) {
-  const { studentId, sessionId, role, displayName } = socket.handshake.auth || {};
+  const auth = socket.handshake.auth || {};
 
-  // Validate required fields
-  if (!studentId || !sessionId || !displayName) {
-    log.warn(
-      { remoteAddress: socket.handshake.address },
-      'Socket connection rejected — missing auth fields'
-    );
-    return next(new Error('Authentication error: studentId, sessionId, and displayName are required'));
+  if (isAuthConfigured()) {
+    try {
+      const claims = verifyJoinToken(auth.token);
+      if (!VALID_ROLES.includes(claims.role)) {
+        return next(new Error(`Authentication error: invalid role "${claims.role}"`));
+      }
+      socket.data = {
+        studentId: claims.studentId,
+        sessionId: claims.sessionId,
+        role: claims.role,
+        displayName: claims.displayName,
+        connectedAt: Date.now(),
+      };
+      log.info(
+        { studentId: claims.studentId, sessionId: claims.sessionId, role: claims.role },
+        'Socket authenticated via signed token'
+      );
+      return next();
+    } catch (err) {
+      log.warn(
+        { remoteAddress: socket.handshake.address, reason: err.message },
+        'Socket connection rejected — invalid join token'
+      );
+      return next(new Error('Authentication error: invalid or expired join token'));
+    }
   }
 
-  // Validate role
-  const validRoles = ['student', 'teacher'];
+  // ── Dev fallback (no secret configured): presence validation only ──
+  const { studentId, sessionId, role, displayName } = auth;
+  if (!studentId || !sessionId || !displayName) {
+    return next(new Error('Authentication error: studentId, sessionId, and displayName are required'));
+  }
   const userRole = role || 'student';
-  if (!validRoles.includes(userRole)) {
+  if (!VALID_ROLES.includes(userRole)) {
     return next(new Error(`Authentication error: invalid role "${userRole}"`));
   }
 
-  // Attach validated data to the socket for downstream handlers
-  socket.data = {
-    studentId,
-    sessionId,
-    role: userRole,
-    displayName,
-    connectedAt: Date.now(),
-  };
-
-  log.info(
-    { studentId, sessionId, role: userRole, displayName },
-    'Socket authenticated successfully'
+  socket.data = { studentId, sessionId, role: userRole, displayName, connectedAt: Date.now() };
+  log.warn(
+    { studentId, sessionId, role: userRole },
+    'Socket authenticated WITHOUT a token (JOIN_TOKEN_SECRET not set — dev mode only)'
   );
-
   next();
 }

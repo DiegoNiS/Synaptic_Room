@@ -102,9 +102,22 @@ export class Session {
    * @returns {Object}
    */
   toNodeMap() {
+    const nodes = Array.from(this.students.values()).map((s) => s.toNodeMapEntry());
+    
+    // Inject the Teacher Root Node (Obsidian style anchor)
+    nodes.push({
+      studentId: `teacher-${this.sessionId}`,
+      displayName: 'Maestro',
+      state: 'teacher',
+      confidence: 1,
+      connections: [],
+      isRoot: true,
+    });
+
     return {
       sessionId: this.sessionId,
-      nodes: Array.from(this.students.values()).map((s) => s.toNodeMapEntry()),
+      nodes,
+      createdAt: this.createdAt,
       updatedAt: Date.now(),
     };
   }

@@ -16,6 +16,7 @@ import { socketAuthMiddleware } from './middlewares/socketAuth.js';
 import { registerSessionHandler } from './handlers/sessionHandler.js';
 import { registerTraceHandler } from './handlers/traceHandler.js';
 import { registerMentorHandler } from './handlers/mentorHandler.js';
+import { SocketRegistry } from './SocketRegistry.js';
 import { createComponentLogger } from '../../utils/logger.js';
 
 const log = createComponentLogger('socket-manager');
@@ -53,6 +54,10 @@ export function createSocketManager(httpServer, deps) {
   // ── Global Middleware ──
   io.use(socketAuthMiddleware);
 
+  // Tracks identity → live socket for targeted delivery, reconnect & dedupe.
+  const socketRegistry = new SocketRegistry();
+  const handlerDeps = { ...deps, io, socketRegistry };
+
   // ── Connection Handler ──
   io.on('connection', (socket) => {
     log.info(
@@ -67,9 +72,9 @@ export function createSocketManager(httpServer, deps) {
 
     // Register all event handlers for this socket
     // Each handler receives the socket AND the dependency container
-    registerSessionHandler(socket, { ...deps, io });
-    registerTraceHandler(socket, deps);
-    registerMentorHandler(socket, deps);
+    registerSessionHandler(socket, handlerDeps);
+    registerTraceHandler(socket, handlerDeps);
+    registerMentorHandler(socket, handlerDeps);
 
     // ── Error handling per socket ──
     socket.on('error', (error) => {

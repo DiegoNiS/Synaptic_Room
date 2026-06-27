@@ -25,6 +25,7 @@ export default function MentorPanel({
 }) {
   const [message, setMessage] = useState('');
   const [timeLeft, setTimeLeft] = useState(null);
+  const [showPasteWarning, setShowPasteWarning] = useState(false);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -60,6 +61,14 @@ export default function MentorPanel({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handlePaste = (e) => {
+    if (isMentor) {
+      e.preventDefault();
+      setShowPasteWarning(true);
+      setTimeout(() => setShowPasteWarning(false), 4000);
     }
   };
 
@@ -310,14 +319,35 @@ export default function MentorPanel({
             borderTop: '1px solid var(--border-color)',
             background: 'rgba(0,0,0,0.2)',
             display: 'flex',
-            gap: '10px',
-            alignItems: 'flex-end',
+            flexDirection: 'column',
+            gap: '8px',
           }}>
-            <textarea
-              ref={inputRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, 500))}
-              onKeyDown={handleKeyDown}
+            {showPasteWarning && (
+              <div style={{
+                color: 'var(--color-blocked)',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                animation: 'pulse 2s infinite',
+              }}>
+                <X size={14} /> 
+                Para que el aprendizaje sea real, debes explicar tu razonamiento, no copiar y pegar código.
+              </div>
+            )}
+            
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              alignItems: 'flex-end',
+            }}>
+              <textarea
+                ref={inputRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value.slice(0, 500))}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
               placeholder={isMentor ? 'Comparte una pista o pregunta guía...' : 'Escribe tu duda aquí...'}
               rows={2}
               style={{
@@ -353,6 +383,7 @@ export default function MentorPanel({
             >
               <Send size={18} />
             </button>
+            </div>
           </div>
           {/* Character counter */}
           <div style={{ textAlign: 'right', padding: '4px 16px 12px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>

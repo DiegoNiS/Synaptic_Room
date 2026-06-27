@@ -1,4 +1,5 @@
 # Synaptic Room
+
 ### El sistema operativo de la inteligencia colectiva
 
 > Plataforma web en tiempo real que transforma un aula tradicional en una red viva de aprendizaje colaborativo, donde la IA detecta bloqueos cognitivos y orquesta micro-mentorías automáticas entre estudiantes.
@@ -94,6 +95,7 @@ Nodos cambian de color en tiempo real
 **1. Process Trace AI** — El detector de bloqueos
 
 No evalúa la respuesta final (que podría copiarse). En cambio, monitorea el proceso:
+
 - Velocidad de escritura (palabras por minuto y variaciones)
 - Duración y frecuencia de pausas
 - Patrones de borrado y reescritura
@@ -105,6 +107,7 @@ Con estos datos, Gemini 1.5 Pro clasifica el estado cognitivo del estudiante:
 **2. Cognitive Mesh** — El enrutador de conocimiento
 
 Cuando detecta un bloqueo, no llama al docente. Busca dentro del mismo salón:
+
 - Estudiantes en estado `flujo` que completaron el mismo ejercicio
 - Disponibilidad para mentorear (no están en otra micro-mentoría activa)
 - Historial de efectividad como mentor en sesiones anteriores
@@ -114,6 +117,7 @@ Crea una conexión directa entre las dos pantallas para la micro-mentoría.
 **3. Tablero del docente** — La visión de red
 
 El docente ve en tiempo real:
+
 - Cada estudiante como un nodo en un grafo D3.js
 - Colores que codifican el estado cognitivo (verde = flujo, rojo = bloqueado, morado = en mentoría)
 - Líneas punteadas que aparecen cuando se activa una micro-mentoría
@@ -170,38 +174,42 @@ El docente ve en tiempo real:
 ## Stack tecnológico
 
 ### Frontend
-| Tecnología | Versión | Uso |
-|---|---|---|
-| React | ^18.2 | Framework UI principal |
-| Vite | ^5.0 | Bundler y dev server |
-| Socket.io-client | ^4.7 | Comunicación en tiempo real |
-| D3.js | ^7.8 | Visualización del tablero docente |
-| React Router | ^6.x | Routing estudiante/docente |
+
+| Tecnología       | Versión | Uso                               |
+| ---------------- | ------- | --------------------------------- |
+| React            | ^18.2   | Framework UI principal            |
+| Vite             | ^5.0    | Bundler y dev server              |
+| Socket.io-client | ^4.7    | Comunicación en tiempo real       |
+| D3.js            | ^7.8    | Visualización del tablero docente |
+| React Router     | ^6.x    | Routing estudiante/docente        |
 
 ### Backend
-| Tecnología | Versión | Uso |
-|---|---|---|
-| Node.js | ^20.x | Runtime del servidor |
-| Express | ^4.18 | Framework HTTP |
-| Socket.io | ^4.7 | Hub WebSocket central |
-| Supabase JS | ^2.x | Cliente de base de datos |
-| node-fetch | ^3.x | Proxy hacia FastAPI |
+
+| Tecnología  | Versión | Uso                      |
+| ----------- | ------- | ------------------------ |
+| Node.js     | ^20.x   | Runtime del servidor     |
+| Express     | ^4.18   | Framework HTTP           |
+| Socket.io   | ^4.7    | Hub WebSocket central    |
+| Supabase JS | ^2.x    | Cliente de base de datos |
+| node-fetch  | ^3.x    | Proxy hacia FastAPI      |
 
 ### Agentes IA
-| Tecnología | Versión | Uso |
-|---|---|---|
-| Python | ^3.11 | Runtime de agentes |
-| Google ADK | ^0.1 | Framework de agentes de IA |
-| FastAPI | ^0.110 | API REST de los agentes |
-| Uvicorn | ^0.27 | Servidor ASGI |
-| google-generativeai | ^0.5 | Cliente Gemini API |
+
+| Tecnología          | Versión | Uso                        |
+| ------------------- | ------- | -------------------------- |
+| Python              | ^3.11   | Runtime de agentes         |
+| Google ADK          | ^0.1    | Framework de agentes de IA |
+| FastAPI             | ^0.110  | API REST de los agentes    |
+| Uvicorn             | ^0.27   | Servidor ASGI              |
+| google-generativeai | ^0.5    | Cliente Gemini API         |
 
 ### Infraestructura
-| Tecnología | Uso |
-|---|---|
-| Supabase | Base de datos PostgreSQL + Auth |
+
+| Tecnología     | Uso                             |
+| -------------- | ------------------------------- |
+| Supabase       | Base de datos PostgreSQL + Auth |
 | Docker Compose | Orquestación local de servicios |
-| GitHub | Control de versiones |
+| GitHub         | Control de versiones            |
 
 ---
 
@@ -317,12 +325,12 @@ npm run dev
 
 ### 5. Acceder a la aplicación
 
-| Rol | URL |
-|---|---|
-| Estudiante | `http://localhost:5173/student/:id` |
-| Docente | `http://localhost:5173/teacher` |
-| API agentes | `http://localhost:8000/docs` |
-| Servidor WS | `http://localhost:3001` |
+| Rol         | URL                                 |
+| ----------- | ----------------------------------- |
+| Estudiante  | `http://localhost:5173/student/:id` |
+| Docente     | `http://localhost:5173/teacher`     |
+| API agentes | `http://localhost:8000/docs`        |
+| Servidor WS | `http://localhost:3001`             |
 
 ---
 
@@ -335,6 +343,7 @@ Este es el contrato más importante del sistema. Si cambia, los tres servicios s
 #### `POST /analyze` — Analizar estado cognitivo
 
 **Request** (enviado por `server/src/infrastructure/ai/AgentClient.js` mediante `TraceAnalysisUseCase`):
+
 ```json
 {
   "student_id": "string",
@@ -350,6 +359,7 @@ Este es el contrato más importante del sistema. Si cambia, los tres servicios s
 ```
 
 **Response** (recibido del agente `process_trace.py`):
+
 ```json
 {
   "student_id": "string",
@@ -362,6 +372,7 @@ Este es el contrato más importante del sistema. Si cambia, los tres servicios s
 #### `POST /match-mentor` — Encontrar mentor
 
 **Request** (enviado cuando `estado === "bloqueado"`):
+
 ```json
 {
   "blocked_student_id": "string",
@@ -371,6 +382,7 @@ Este es el contrato más importante del sistema. Si cambia, los tres servicios s
 ```
 
 **Response** (recibido del agente `cognitive_mesh.py`):
+
 ```json
 {
   "mentor_id": "string",
@@ -381,13 +393,13 @@ Este es el contrato más importante del sistema. Si cambia, los tres servicios s
 
 ### Eventos Socket.io
 
-| Evento | Dirección | Payload | Descripción |
-|---|---|---|---|
-| `trace` | Cliente → Servidor | `{student_id, trace}` | Datos del tracker de escritura |
-| `classroom:state` | Servidor → Cliente | `{students: [...]}` | Estado completo del salón |
-| `mentorship:start` | Servidor → Cliente | `{mentor, blocked}` | Inicia una micro-mentoría |
-| `mentorship:end` | Servidor → Cliente | `{mentor, blocked}` | Termina una micro-mentoría |
-| `node:update` | Servidor → Cliente | `{student_id, estado}` | Actualiza un nodo en el tablero |
+| Evento             | Dirección          | Payload                | Descripción                     |
+| ------------------ | ------------------ | ---------------------- | ------------------------------- |
+| `trace`            | Cliente → Servidor | `{student_id, trace}`  | Datos del tracker de escritura  |
+| `classroom:state`  | Servidor → Cliente | `{students: [...]}`    | Estado completo del salón       |
+| `mentorship:start` | Servidor → Cliente | `{mentor, blocked}`    | Inicia una micro-mentoría       |
+| `mentorship:end`   | Servidor → Cliente | `{mentor, blocked}`    | Termina una micro-mentoría      |
+| `node:update`      | Servidor → Cliente | `{student_id, estado}` | Actualiza un nodo en el tablero |
 
 ---
 
@@ -406,6 +418,7 @@ pip install google-adk
 Agente ADK que recibe métricas de comportamiento de escritura y clasifica el estado cognitivo del estudiante.
 
 **Lógica de clasificación:**
+
 - `flujo`: WPM estable > 10, pausas < 3s, backspace ratio < 0.15
 - `procesando`: WPM variable, pausas 3-8s, backspace ratio 0.15-0.30
 - `bloqueado`: WPM < 5 o pausa > 8s, backspace ratio > 0.30
@@ -417,6 +430,7 @@ El agente usa Gemini para analizar el contexto completo y tomar la decisión fin
 Agente ADK que selecciona el mejor mentor disponible para un estudiante bloqueado.
 
 **Criterios de matching:**
+
 1. El mentor debe estar en estado `flujo` (no procesando, no bloqueado, no en mentoría)
 2. Preferencia por mentores que completaron el mismo tipo de ejercicio
 3. Considera el historial de sesiones anteriores (efectividad como mentor)
@@ -444,6 +458,7 @@ VITE_SERVER_URL=http://localhost:3001
 ```
 
 Obtener las claves:
+
 - **Gemini API Key**: [Google AI Studio](https://aistudio.google.com/app/apikey)
 - **Supabase URL y Key**: [Supabase Dashboard](https://app.supabase.com) → Settings → API
 
@@ -451,11 +466,11 @@ Obtener las claves:
 
 ## Equipo
 
-| Nombre | Rol | Responsabilidad |
-|---|---|---|
-| Diego | Líder técnico · Agentes IA | Google ADK, FastAPI, integración Gemini |
-| Maxs | Frontend | React, Canvas, KeystrokeTracker, MentorPanel |
-| Ower | Backend | Node.js, Socket.io, Supabase, Tablero docente |
+| Nombre | Rol                        | Responsabilidad                               |
+| ------ | -------------------------- | --------------------------------------------- |
+| Diego  | Líder técnico · Agentes IA | Google ADK, FastAPI, integración Gemini       |
+| Maxs   | Frontend                   | React, Canvas, KeystrokeTracker, MentorPanel  |
+| Ower   | Backend                    | Node.js, Socket.io, Supabase, Tablero docente |
 
 ---
 
@@ -472,11 +487,13 @@ Obtener las claves:
 La mayoría de soluciones de IA en educación reemplazan al docente con un chatbot. Synaptic Room hace algo diferente: **amplifica la inteligencia que ya existe en el aula**. El conocimiento no viene de afuera, viene de los propios estudiantes. La IA solo actúa como el sistema nervioso que conecta las neuronas correctas en el momento correcto.
 
 Esto resuelve tres problemas a la vez:
+
 - **Inclusión**: ningún estudiante se queda bloqueado en silencio
 - **Evaluación inteligente**: el sistema evalúa el proceso de razonamiento, no la respuesta final (que puede copiarse)
 - **Escalabilidad**: funciona con 10 o con 100 estudiantes sin requerir más docentes
 
 **Diferenciadores técnicos:**
+
 - Uso de Google ADK para construir agentes de IA reales (no solo llamadas a LLM)
 - Análisis de proceso cognitivo en tiempo real (no solo resultados)
 - Arquitectura full-stack con WebSockets para sincronización instantánea
@@ -484,4 +501,4 @@ Esto resuelve tres problemas a la vez:
 
 ---
 
-*Synaptic Room — Hackathon NEXIA 2026*
+_Synaptic Room — Hackathon NEXIA 2026_

@@ -50,12 +50,18 @@ export class MentorshipUseCase {
       return null;
     }
 
-    // Find all potential mentors in flow
-    const availableMentors = Array.from(session.students.values())
+    // Find all potential mentors in flow — build ENRICHED profiles
+    const availableMentorProfiles = Array.from(session.students.values())
       .filter((s) => s.studentId !== blockedStudentId && s.isAvailableAsMentor())
-      .map((s) => s.studentId);
+      .map((s) => ({
+        id: s.studentId,
+        displayName: s.displayName,
+        confidence: s.confidence,
+        timeInFlowMs: s.timeInCurrentState(),
+        currentChallenge: null, // Could be enriched from session exercise data
+      }));
 
-    if (availableMentors.length === 0) {
+    if (availableMentorProfiles.length === 0) {
       log.info({ sessionId, blockedStudentId }, 'No available mentors in flow');
       return null;
     }
@@ -63,7 +69,12 @@ export class MentorshipUseCase {
     let mentorId = null;
     if (this.agentClient) {
       try {
-        const matchResult = await this.agentClient.matchMentor(blockedStudentId, sessionId, availableMentors);
+        const matchResult = await this.agentClient.matchMentor({
+          blockedStudentId,
+          sessionId,
+          blockagePoint: blockedStudent.blockagePoint || null,
+          availableMentors: availableMentorProfiles,
+        });
         if (matchResult && matchResult.mentorId && matchResult.mentorId !== 'none') {
           mentorId = matchResult.mentorId;
           log.info({ blockedStudentId, mentorId, matchScore: matchResult.matchScore }, 'AI match found via Cognitive Mesh');
@@ -168,15 +179,31 @@ export class MentorshipUseCase {
       const mentor = session.getStudent(mentorship.mentorId);
       const mentee = session.getStudent(mentorship.menteeId);
 
-      if (mentor) session.updateStudent(mentor.withMentorshipCleared());
-      if (mentee) session.updateStudent(mentee.withMentorshipCleared());
+      // Restore the mentor toward their prior 'flow' so they re-enter the
+      // mentor pool; reset the mentee to a clean idle for a fresh start.
+      const clearedMentor = mentor ? mentor.withMentorshipCleared({ restore: true }) : null;
+      const clearedMentee = mentee ? mentee.withMentorshipCleared({ restore: false }) : null;
+      if (clearedMentor) session.updateStudent(clearedMentor);
+      if (clearedMentee) session.updateStudent(clearedMentee);
 
-      // Notify the room
+      // Notify the room the mentorship ended
       this.io.to(mentorship.sessionId).emit('mentorship:ended', {
         mentorshipId,
         reason,
         closedBy,
       });
+
+      // Emit AUTHORITATIVE cognitive:state for both, so a client that missed
+      // the optimistic local revert (e.g. after reconnect) is corrected.
+      for (const s of [clearedMentor, clearedMentee]) {
+        if (!s) continue;
+        this.io.to(mentorship.sessionId).emit('cognitive:state', {
+          studentId: s.studentId,
+          state: s.state,
+          confidence: s.confidence,
+          blockagePoint: s.blockagePoint,
+        });
+      }
 
       // Update teacher dashboard
       this.io.to(`teacher:${mentorship.sessionId}`).emit(
@@ -199,15 +226,42 @@ export class MentorshipUseCase {
   }
 
   /**
+   * Looks up an active mentorship by id.
+   * @param {string} mentorshipId
+   * @returns {Mentorship|undefined}
+   */
+  getMentorship(mentorshipId) {
+    return this.activeMentorships.get(mentorshipId);
+  }
+
+  /**
+   * Finds the active mentorship a student currently participates in.
+   * Used to resync a reconnecting client.
+   * @param {string} studentId
+   * @param {string} [sessionId]
+   * @returns {Mentorship|null}
+   */
+  getActiveMentorshipForStudent(studentId, sessionId) {
+    for (const m of this.activeMentorships.values()) {
+      if (sessionId && m.sessionId !== sessionId) continue;
+      if (m.mentorId === studentId || m.menteeId === studentId) return m;
+    }
+    return null;
+  }
+
+  /**
    * Periodically checks for and closes expired mentorships.
    * @private
    */
   _checkExpirations() {
+    // Snapshot expired ids first — closeMentorship mutates activeMentorships.
+    const expiredIds = [];
     for (const [id, mentorship] of this.activeMentorships) {
-      if (mentorship.isExpired()) {
-        log.info({ mentorshipId: id }, 'Mentorship expired — auto-closing');
-        this.closeMentorship(id, 'system', 'timeout');
-      }
+      if (mentorship.isExpired()) expiredIds.push(id);
+    }
+    for (const id of expiredIds) {
+      log.info({ mentorshipId: id }, 'Mentorship expired — auto-closing');
+      this.closeMentorship(id, 'system', 'timeout');
     }
   }
 

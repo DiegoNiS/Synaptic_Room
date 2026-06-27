@@ -11,16 +11,13 @@
  * These are the events the server LISTENS for.
  */
 export const SOCKET_INCOMING = Object.freeze({
-  // Session lifecycle
-  STUDENT_JOIN: 'student:join',
-  STUDENT_LEAVE: 'student:leave',
-
-  // Keystroke trace stream
+  // Keystroke trace stream (join is implicit on connect; leave is 'disconnect')
   STUDENT_TRACE: 'student:trace',
 
   // Mentorship actions
   MENTORSHIP_CLOSE: 'mentorship:close',
   MENTORSHIP_MESSAGE: 'mentorship:message',
+  MENTORSHIP_DRAW: 'mentorship:draw',
 });
 
 /**

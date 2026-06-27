@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-ssr
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-error.log*
+.git
+.gitignore
+*.log
+coverage
+.vscode
+.idea
+Dockerfile
+.dockerignore

@@ -20,6 +20,10 @@ const log = createComponentLogger('session-repo');
 export class SessionRepository {
   constructor() {
     this.supabase = getSupabaseClient();
+    this.enabled = Boolean(this.supabase);
+    if (!this.enabled) {
+      log.warn('Supabase not configured — persistence disabled, running in-memory only');
+    }
   }
 
   /**
@@ -30,6 +34,7 @@ export class SessionRepository {
    * @returns {Promise<Object|null>}
    */
   async createSession({ sessionId, teacherId }) {
+    if (!this.enabled) return null;
     try {
       const { data, error } = await this.supabase
         .from('sessions')
@@ -62,6 +67,7 @@ export class SessionRepository {
    * @returns {Promise<void>}
    */
   async logEvent({ sessionId, studentId, eventType, metadata = {} }) {
+    if (!this.enabled) return;
     try {
       const { error } = await this.supabase
         .from('cognitive_events')
@@ -86,6 +92,7 @@ export class SessionRepository {
    * @returns {Promise<void>}
    */
   async endSession(sessionId) {
+    if (!this.enabled) return;
     try {
       const { error } = await this.supabase
         .from('sessions')
@@ -105,6 +112,7 @@ export class SessionRepository {
    * @returns {Promise<void>}
    */
   async saveMentorship(mentorship) {
+    if (!this.enabled) return;
     try {
       const { error } = await this.supabase
         .from('mentorships')
@@ -136,6 +144,7 @@ export class SessionRepository {
    * @returns {Promise<void>}
    */
   async closeMentorship(mentorshipId, status, durationMs) {
+    if (!this.enabled) return;
     try {
       const { error } = await this.supabase
         .from('mentorships')

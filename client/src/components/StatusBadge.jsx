@@ -1,21 +1,20 @@
 import React from 'react';
 
 /**
- * A beautiful pill badge representing a student's cognitive state.
- * Includes custom glow effects corresponding to the state.
- * 
- * @param {Object} props
- * @param {string} props.state - 'idle' | 'flow' | 'blocked' | 'mentoring'
+ * StatusBadge — Pill badge representing a student's cognitive state.
+ * Uses teacher-friendly language.
  */
 export default function StatusBadge({ state }) {
   const getBadgeConfig = () => {
     switch (state) {
       case 'flow':
-        return { label: 'En Flujo ⚡', className: 'flow' };
+        return { label: 'Avanzando 🚀', className: 'flow' };
       case 'blocked':
-        return { label: 'Bloqueado ⚠️', className: 'blocked' };
+        return { label: 'Necesita Ayuda ⚠️', className: 'blocked' };
       case 'mentoring':
-        return { label: 'Mentoreando 🤝', className: 'mentoring' };
+        return { label: 'Colaborando 🤝', className: 'mentoring' };
+      case 'fraude':
+        return { label: 'Alerta Copia 🚨', className: 'blocked' };
       case 'idle':
       default:
         return { label: 'Activo 🟢', className: 'idle' };
