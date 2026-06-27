@@ -6,13 +6,8 @@ import { useSocket } from '../hooks/useSocket';
 import { Wifi, WifiOff, Brain, Zap } from 'lucide-react';
 
 /**
- * StudentView — The main workspace for a student.
- * Shows the Canvas + tracker, current cognitive state, and overlays MentorPanel during mentorships.
- *
- * @param {Object} props
- * @param {string} props.studentId
- * @param {string} props.sessionId
- * @param {string} props.displayName
+ * StudentView — Workspace del estudiante.
+ * Panel de problemas + pizarra interactiva con cajas de texto para métricas.
  */
 export default function StudentView({ studentId, sessionId, displayName }) {
   const auth = { studentId, sessionId, role: 'student', displayName };
@@ -27,7 +22,6 @@ export default function StudentView({ studentId, sessionId, displayName }) {
     closeMentorship,
   } = useSocket(auth);
 
-  // Trace callback passed to the Canvas/Tracker combo
   const handleTrace = useCallback((metrics) => {
     sendTrace(metrics);
   }, [sendTrace]);
@@ -40,186 +34,193 @@ export default function StudentView({ studentId, sessionId, displayName }) {
     analyzing: '#f59e0b',
   };
 
+  const initials = displayName
+    ? displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Topbar */}
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-deep)' }}>
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <header style={{
-        height: '64px',
-        padding: '0 24px',
+        height: '58px',
+        padding: '0 20px',
         borderBottom: '1px solid var(--border-color)',
-        background: 'rgba(8,10,16,0.95)',
-        backdropFilter: 'blur(12px)',
+        background: 'rgba(8,10,16,0.97)',
+        backdropFilter: 'blur(14px)',
         display: 'flex',
         alignItems: 'center',
-        gap: '16px',
+        gap: '14px',
         position: 'sticky',
         top: 0,
         zIndex: 50,
+        flexShrink: 0,
       }}>
         {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '1.4rem' }}>🧠</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <span style={{ fontSize: '1.25rem' }}>🧠</span>
           <span style={{
             fontFamily: 'var(--font-display)',
-            fontWeight: '700',
-            fontSize: '1.1rem',
+            fontWeight: '800',
+            fontSize: '1rem',
             background: 'var(--grad-primary)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
+            letterSpacing: '-0.01em',
           }}>
             Synaptic Room
           </span>
         </div>
 
-        <div style={{ width: '1px', height: '28px', background: 'var(--border-color)' }} />
+        <div style={{ width: '1px', height: '24px', background: 'var(--border-color)', flexShrink: 0 }} />
 
-        {/* Student Identity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Avatar + identity */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexShrink: 0 }}>
           <div style={{
-            width: '32px',
-            height: '32px',
+            width: '30px',
+            height: '30px',
             borderRadius: '50%',
             background: 'var(--grad-primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '0.85rem',
+            fontSize: '0.75rem',
             fontWeight: '700',
             color: '#fff',
+            flexShrink: 0,
+            boxShadow: 'var(--shadow-glow)',
           }}>
-            {displayName.charAt(0).toUpperCase()}
+            {initials}
           </div>
-          <div>
-            <div style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>{displayName}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sesión: {sessionId}</div>
+          <div style={{ lineHeight: 1.2 }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>{displayName}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Sesión {sessionId}</div>
           </div>
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* AI Cognitive State */}
+        {/* Right side */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+
+          {/* AI state chip */}
           {cognitiveState.state !== 'idle' && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
+              gap: '5px',
+              padding: '4px 10px',
               borderRadius: 'var(--radius-full)',
-              background: `${stateColors[cognitiveState.state]}15`,
-              border: `1px solid ${stateColors[cognitiveState.state]}40`,
+              background: `${stateColors[cognitiveState.state]}12`,
+              border: `1px solid ${stateColors[cognitiveState.state]}35`,
             }}>
-              <Brain size={14} color={stateColors[cognitiveState.state]} />
-              <span style={{ fontSize: '0.8rem', fontWeight: '600', color: stateColors[cognitiveState.state] }}>
-                IA: {Math.round(cognitiveState.confidence * 100)}%
+              <Brain size={12} color={stateColors[cognitiveState.state]} />
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: stateColors[cognitiveState.state] }}>
+                IA {Math.round(cognitiveState.confidence * 100)}%
               </span>
             </div>
           )}
 
-          {/* Status Badge */}
           <StatusBadge state={cognitiveState.state} />
 
-          {/* Connection indicator */}
+          {/* Connection */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            padding: '5px 10px',
+            padding: '4px 10px',
             borderRadius: 'var(--radius-full)',
-            background: connected ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-            border: `1px solid ${connected ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            background: connected ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+            border: `1px solid ${connected ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
           }}>
             {connected
-              ? <Wifi size={13} color="var(--color-flow)" />
-              : <WifiOff size={13} color="var(--color-blocked)" />}
+              ? <Wifi size={12} color="var(--color-flow)" />
+              : <WifiOff size={12} color="var(--color-blocked)" />}
             <span style={{
-              fontSize: '0.75rem',
+              fontSize: '0.72rem',
               fontWeight: '600',
               color: connected ? 'var(--color-flow)' : 'var(--color-blocked)',
             }}>
-              {connected ? 'En vivo' : 'Desconectado'}
+              {connected ? 'En vivo' : 'Sin conexión'}
             </span>
           </div>
         </div>
       </header>
 
-      {/* Socket Error Banner */}
+      {/* ── Banners ──────────────────────────────────────────────────────── */}
       {socketError && (
         <div style={{
-          padding: '10px 24px',
-          background: 'rgba(239,68,68,0.15)',
-          borderBottom: '1px solid rgba(239,68,68,0.3)',
+          padding: '9px 20px',
+          background: 'rgba(239,68,68,0.12)',
+          borderBottom: '1px solid rgba(239,68,68,0.25)',
           color: 'var(--color-blocked)',
-          fontSize: '0.85rem',
+          fontSize: '0.82rem',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
+          flexShrink: 0,
         }}>
           <span>⚠️</span>
           <span><strong>Error de conexión:</strong> {socketError}. Reintentando...</span>
         </div>
       )}
 
-      {/* Cognitive Blockage Alert Banner */}
       {cognitiveState.state === 'blocked' && !activeMentorship && (
         <div style={{
-          padding: '12px 24px',
-          background: 'rgba(239,68,68,0.12)',
-          borderBottom: '1px solid rgba(239,68,68,0.25)',
+          padding: '10px 20px',
+          background: 'rgba(239,68,68,0.1)',
+          borderBottom: '1px solid rgba(239,68,68,0.2)',
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
           animation: 'pulse-blocked 2s infinite ease-in-out',
+          flexShrink: 0,
         }}>
-          <Zap size={18} color="var(--color-blocked)" />
+          <Zap size={16} color="var(--color-blocked)" />
           <div>
-            <strong style={{ color: 'var(--color-blocked)', fontSize: '0.9rem' }}>
+            <strong style={{ color: 'var(--color-blocked)', fontSize: '0.88rem' }}>
               Bloqueo detectado por IA
             </strong>
             {cognitiveState.blockagePoint && (
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginLeft: '8px' }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginLeft: '8px' }}>
                 — {cognitiveState.blockagePoint}
               </span>
             )}
           </div>
-          <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
             Buscando mentor disponible...
           </span>
         </div>
       )}
 
-      {/* Flow State Positive Banner */}
       {cognitiveState.state === 'flow' && (
         <div style={{
-          padding: '10px 24px',
-          background: 'rgba(16,185,129,0.08)',
-          borderBottom: '1px solid rgba(16,185,129,0.2)',
+          padding: '9px 20px',
+          background: 'rgba(16,185,129,0.07)',
+          borderBottom: '1px solid rgba(16,185,129,0.18)',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
+          flexShrink: 0,
         }}>
-          <Zap size={16} color="var(--color-flow)" />
-          <span style={{ color: 'var(--color-flow)', fontSize: '0.85rem', fontWeight: '600' }}>
+          <Zap size={14} color="var(--color-flow)" />
+          <span style={{ color: 'var(--color-flow)', fontSize: '0.82rem', fontWeight: '600' }}>
             ¡Excelente ritmo! La IA detecta que estás en estado de flujo cognitivo.
           </span>
         </div>
       )}
 
-      {/* Main Workspace */}
+      {/* ── Main workspace ───────────────────────────────────────────────── */}
       <main style={{
         flex: 1,
-        padding: '20px 24px',
+        padding: '16px 20px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px',
         minHeight: 0,
-        maxHeight: 'calc(100vh - 64px)',
+        overflow: 'hidden',
       }}>
-        <Canvas
-          onTrace={handleTrace}
-          disabled={false}
-        />
+        <Canvas onTrace={handleTrace} disabled={false} />
       </main>
 
-      {/* Mentorship Overlay — shown when active */}
+      {/* ── Mentorship overlay ───────────────────────────────────────────── */}
       {activeMentorship && (
         <MentorPanel
           mentorship={activeMentorship}
@@ -232,7 +233,6 @@ export default function StudentView({ studentId, sessionId, displayName }) {
             <Canvas
               onTrace={activeMentorship.role === 'mentee' ? handleTrace : () => {}}
               disabled={activeMentorship.role === 'mentor'}
-              initialText={''}
             />
           }
         />

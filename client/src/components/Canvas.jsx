@@ -1,133 +1,229 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useTracker } from '../hooks/useTracker';
-import { Square, Edit2, Eraser, Trash2, Lightbulb } from 'lucide-react';
+import { Edit2, Eraser, Trash2, Lightbulb, Type, X, GripHorizontal } from 'lucide-react';
 
 const CHALLENGES = [
   {
     id: 'math',
     title: 'Desafío 1: Límites Infinitos',
-    description: 'Demuestra matemáticamente y explica paso a paso por qué el límite de (2x^2 + 5) / (x^2 - 3) cuando x tiende a infinito es igual a 2. Detalla tu lógica de división de términos.',
+    description:
+      'Demuestra matemáticamente y explica paso a paso por qué el límite de (2x² + 5) / (x² - 3) cuando x tiende a infinito es igual a 2. Detalla tu lógica de división de términos.',
   },
   {
     id: 'algo',
     title: 'Desafío 2: Algoritmos Eficientes',
-    description: 'Escribe un pseudocódigo o explica en tus palabras la lógica para detectar si un número entero es primo en un tiempo de complejidad O(√N). ¿Por qué no necesitamos probar hasta N?',
+    description:
+      'Escribe pseudocódigo o explica la lógica para detectar si un número entero es primo en O(√N). ¿Por qué no necesitamos probar hasta N?',
   },
   {
     id: 'logic',
     title: 'Desafío 3: Paradojas de IA',
-    description: 'Resuelve: Tres misioneros y tres caníbales deben cruzar un río en un bote que solo lleva a dos personas. Si los caníbales superan en número a los misioneros en cualquier orilla, se los comerán. ¿Cómo cruzan todos a salvo?',
-  }
+    description:
+      'Tres misioneros y tres caníbales deben cruzar un río en un bote de dos personas. Los caníbales nunca pueden superar a los misioneros en ninguna orilla. ¿Cómo cruzan todos a salvo?',
+  },
 ];
 
-export default function Canvas({ onTrace, disabled = false, initialText = '' }) {
+const PALETTE = ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#ec4899', '#ffffff'];
+
+let boxIdCounter = 1;
+
+export default function Canvas({ onTrace, disabled = false }) {
   const [selectedChallenge, setSelectedChallenge] = useState(CHALLENGES[0]);
-  const [text, setText] = useState(initialText);
 
-  // Hook for trace tracking
-  const tracker = useTracker(onTrace, 2000);
-
-  // HTML5 Sketchpad refs & state
+  // ── Drawing state ────────────────────────────────────────────────────────
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
+  const containerRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [tool, setTool] = useState('pencil'); // 'pencil' | 'eraser' | 'text'
   const [color, setColor] = useState('#6366f1');
-  const [tool, setTool] = useState('pencil'); // 'pencil' | 'eraser'
   const [brushSize, setBrushSize] = useState(3);
 
-  // Synchronize initialText if updated by parent (e.g. mentee's text synced to mentor)
-  useEffect(() => {
-    if (initialText !== undefined) {
-      setText(initialText);
-      tracker.textRef.current = initialText;
-    }
-  }, [initialText]);
+  // ── Text boxes ───────────────────────────────────────────────────────────
+  const [textBoxes, setTextBoxes] = useState([]);
+  const [activeBoxId, setActiveBoxId] = useState(null);
+  const dragRef = useRef(null);
 
-  // Set up whiteboard canvas
+  // ── Metrics tracker ──────────────────────────────────────────────────────
+  const { recordKeystroke, updateTextSnapshot } = useTracker(onTrace, 2000);
+
+  // ── Canvas initialisation ────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
-    // Support responsive sizing
-    canvas.width = canvas.parentElement.offsetWidth || 500;
-    canvas.height = canvas.parentElement.offsetHeight || 600;
+    const { width, height } = container.getBoundingClientRect();
+    canvas.width = Math.floor(width);
+    canvas.height = Math.floor(height);
 
-    const context = canvas.getContext('2d');
-    context.lineCap = 'round';
-    context.strokeStyle = color;
-    context.lineWidth = brushSize;
-    contextRef.current = context;
+    const ctx = canvas.getContext('2d');
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = brushSize;
+    contextRef.current = ctx;
 
-    // Fill background black/gray
-    context.fillStyle = '#0d0f15';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-  }, []);
+    ctx.fillStyle = '#0d0f15';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update canvas options
   useEffect(() => {
     if (!contextRef.current) return;
     contextRef.current.strokeStyle = tool === 'eraser' ? '#0d0f15' : color;
     contextRef.current.lineWidth = tool === 'eraser' ? brushSize * 4 : brushSize;
   }, [color, tool, brushSize]);
 
-  const startDrawing = ({ nativeEvent }) => {
-    if (disabled) return;
+  // ── Sync combined text snapshot for metrics ──────────────────────────────
+  useEffect(() => {
+    const combined = textBoxes
+      .map(b => b.text)
+      .filter(Boolean)
+      .join('\n\n');
+    updateTextSnapshot(combined);
+  }, [textBoxes, updateTextSnapshot]);
+
+  // ── Drawing handlers ─────────────────────────────────────────────────────
+  const startDrawing = useCallback(({ nativeEvent }) => {
+    if (disabled || tool === 'text') return;
     const { offsetX, offsetY } = nativeEvent;
     contextRef.current.beginPath();
     contextRef.current.moveTo(offsetX, offsetY);
     setIsDrawing(true);
-  };
+  }, [disabled, tool]);
 
-  const draw = ({ nativeEvent }) => {
-    if (!isDrawing || disabled) return;
+  const draw = useCallback(({ nativeEvent }) => {
+    if (!isDrawing || disabled || tool === 'text') return;
     const { offsetX, offsetY } = nativeEvent;
     contextRef.current.lineTo(offsetX, offsetY);
     contextRef.current.stroke();
-  };
+  }, [isDrawing, disabled, tool]);
 
-  const stopDrawing = () => {
-    contextRef.current.closePath();
+  const stopDrawing = useCallback(() => {
+    if (!isDrawing) return;
+    contextRef.current?.closePath();
     setIsDrawing(false);
-  };
+  }, [isDrawing]);
 
-  const clearCanvas = () => {
+  const handleCanvasClick = useCallback(({ nativeEvent }) => {
+    if (tool !== 'text' || disabled) return;
+    const { offsetX, offsetY } = nativeEvent;
+    const id = boxIdCounter++;
+    setTextBoxes(prev => [...prev, { id, x: offsetX, y: offsetY, text: '' }]);
+    setActiveBoxId(id);
+  }, [tool, disabled]);
+
+  const clearCanvas = useCallback(() => {
     if (disabled) return;
     const canvas = canvasRef.current;
-    const context = contextRef.current;
-    context.fillStyle = '#0d0f15';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-  };
+    const ctx = contextRef.current;
+    ctx.fillStyle = '#0d0f15';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setTextBoxes([]);
+    setActiveBoxId(null);
+  }, [disabled]);
 
-  const handleTextAreaChange = (e) => {
-    setText(e.target.value);
-    tracker.handleChange(e);
-  };
+  // ── Text box handlers ────────────────────────────────────────────────────
+  const updateBoxText = useCallback((id, text) => {
+    setTextBoxes(prev => prev.map(b => b.id === id ? { ...b, text } : b));
+  }, []);
+
+  const deleteBox = useCallback((id) => {
+    setTextBoxes(prev => prev.filter(b => b.id !== id));
+    setActiveBoxId(prev => prev === id ? null : prev);
+  }, []);
+
+  const handleBoxDragStart = useCallback((e, id) => {
+    if (disabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const box = textBoxes.find(b => b.id === id);
+    if (!box) return;
+    dragRef.current = { id, startX: e.clientX, startY: e.clientY, origX: box.x, origY: box.y };
+    setActiveBoxId(id);
+
+    const onMove = (me) => {
+      if (!dragRef.current) return;
+      const { id: dId, startX, startY, origX, origY } = dragRef.current;
+      const dx = me.clientX - startX;
+      const dy = me.clientY - startY;
+      setTextBoxes(prev => prev.map(b => b.id === dId ? { ...b, x: origX + dx, y: origY + dy } : b));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [disabled, textBoxes]);
+
+  // ── Cursor per tool ──────────────────────────────────────────────────────
+  const canvasCursor = disabled
+    ? 'not-allowed'
+    : tool === 'eraser'
+    ? 'cell'
+    : tool === 'text'
+    ? 'crosshair'
+    : 'crosshair';
 
   return (
-    <div className="workspace-container" style={{ height: '100%', gridTemplateRows: 'auto 1fr', padding: 0,}}>
-      {/* Top Header Selector */}
-      <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
-            <Lightbulb size={20} color="#f59e0b" />
-            <span>Resolución de Problemas Cognitivos</span>
-          </h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {CHALLENGES.map((ch) => (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
+
+      {/* ── Challenge selector ──────────────────────────────────────────── */}
+      <div className="glass-panel" style={{ padding: '14px 18px', flexShrink: 0 }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <Lightbulb size={17} color="#f59e0b" />
+              <span style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: '700',
+                fontSize: '0.95rem',
+                color: 'var(--text-primary)',
+              }}>
+                {selectedChallenge.title}
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.55', margin: 0 }}>
+              {selectedChallenge.description}
+            </p>
+          </div>
+
+          {/* Challenge tabs */}
+          <div style={{
+            display: 'flex',
+            gap: '6px',
+            background: 'rgba(0,0,0,0.3)',
+            padding: '4px',
+            borderRadius: 'var(--radius-md)',
+            flexShrink: 0,
+          }}>
+            {CHALLENGES.map(ch => (
               <button
                 key={ch.id}
                 onClick={() => setSelectedChallenge(ch)}
                 disabled={disabled}
                 style={{
-                  padding: '6px 12px',
+                  padding: '5px 12px',
                   borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--border-color)',
-                  background: selectedChallenge.id === ch.id ? 'var(--grad-primary)' : 'rgba(255,255,255,0.03)',
-                  color: '#fff',
+                  border: 'none',
+                  background: selectedChallenge.id === ch.id
+                    ? 'var(--grad-primary)'
+                    : 'transparent',
+                  color: selectedChallenge.id === ch.id ? '#fff' : 'var(--text-muted)',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: '600',
+                  fontSize: '0.78rem',
                   cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontSize: '0.85rem',
-                  fontWeight: '500',
-                  transition: 'all var(--transition-fast)'
+                  transition: 'all var(--transition-fast)',
+                  letterSpacing: '0.04em',
                 }}
               >
                 {ch.id.toUpperCase()}
@@ -135,176 +231,324 @@ export default function Canvas({ onTrace, disabled = false, initialText = '' }) 
             ))}
           </div>
         </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.4' }}>
-          <strong>{selectedChallenge.title}:</strong> {selectedChallenge.description}
-        </p>
       </div>
 
-      {/* Main Workspace Layout Split (Text Reasoning & Sketch whiteboard) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr',
-        //gridTemplateRows: '4fr 6fr',
-        gap: '20px',
-        marginTop: '20px'
-      }} className="desktop-split">
-        {/* Text Reasoning Editor */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '80vh' }}>
+      {/* ── Whiteboard ─────────────────────────────────────────────────────── */}
+      <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+
+        {/* Toolbar */}
+        <div style={{
+          padding: '8px 14px',
+          borderBottom: '1px solid var(--border-color)',
+          background: 'rgba(0,0,0,0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          flexWrap: 'wrap',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)', flexShrink: 0 }}>
+            Pizarra Colaborativa
+          </span>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Tool group */}
           <div style={{
-            padding: '12px 16px',
-            borderBottom: '1px solid var(--border-color)',
-            background: 'rgba(255,255,255,0.02)',
             display: 'flex',
-            justifyContent: 'between',
-            alignItems: 'center'
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: 'var(--radius-md)',
+            padding: '3px',
+            gap: '2px',
+            border: '1px solid var(--border-color)',
           }}>
-            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
-              Área de Razonamiento Escrito (Process Trace AI)
-            </span>
-            {disabled && <span style={{ fontSize: '0.8rem', color: 'var(--color-blocked)', marginLeft: 'auto' }}>Vista Mentor (Lectura)</span>}
+            {[
+              { id: 'pencil', icon: <Edit2 size={14} />, label: 'Dibujar' },
+              { id: 'eraser', icon: <Eraser size={14} />, label: 'Borrador' },
+              { id: 'text',   icon: <Type size={14} />,  label: 'Texto' },
+            ].map(({ id, icon, label }) => (
+              <button
+                key={id}
+                onClick={() => setTool(id)}
+                disabled={disabled}
+                title={label}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 'calc(var(--radius-md) - 3px)',
+                  border: 'none',
+                  background: tool === id ? 'rgba(99,102,241,0.25)' : 'transparent',
+                  color: tool === id ? '#a5b4fc' : 'var(--text-muted)',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '0.78rem',
+                  fontWeight: tool === id ? '600' : '400',
+                  transition: 'all var(--transition-fast)',
+                  boxShadow: tool === id ? 'inset 0 1px 2px rgba(0,0,0,0.3)' : 'none',
+                }}
+              >
+                {icon}
+                <span style={{ display: 'none', '@media(minWidth:700px)': { display: 'inline' } }}>{label}</span>
+              </button>
+            ))}
           </div>
-          <textarea
-            className="canvas-textarea"
-            placeholder="Comienza a escribir tu solución paso a paso. Recuerda explicar tu lógica, no solo la respuesta final..."
-            value={text}
-            onChange={handleTextAreaChange}
-            onKeyDown={tracker.handleKeyDown}
-            disabled={disabled}
-            style={{
-              flexGrow: 1,
-              border: 'none',
-              borderRadius: 0,
-              background: 'transparent',
-              fontSize: '1.05rem',
-              color: disabled ? 'var(--text-secondary)' : 'var(--text-primary)'
-            }}
-          />
-        </div>
 
-        {/* Live Whiteboard Sketchpad */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '80vh' }}>
-          {/* Drawing Controls */}
-          <div style={{
-            padding: '10px 16px',
-            borderBottom: '1px solid var(--border-color)',
-            background: 'rgba(255,255,255,0.02)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            flexWrap: 'wrap'
-          }}>
-            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-secondary)', marginRight: 'auto' }}>
-              Pizarra Gráfica Colaborativa
-            </span>
-
-            {/* Drawing Tools */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                onClick={() => setTool('pencil')}
-                className="btn-secondary"
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: tool === 'pencil' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                  borderColor: tool === 'pencil' ? '#6366f1' : 'var(--border-color)'
-                }}
-                title="Pincel"
-                disabled={disabled}
-              >
-                <Edit2 size={16} />
-              </button>
-              <button
-                onClick={() => setTool('eraser')}
-                className="btn-secondary"
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: tool === 'eraser' ? 'rgba(255,255,255,0.1)' : 'transparent',
-                  borderColor: tool === 'eraser' ? '#fff' : 'var(--border-color)'
-                }}
-                title="Borrador"
-                disabled={disabled}
-              >
-                <Eraser size={16} />
-              </button>
-              <button
-                onClick={clearCanvas}
-                className="btn-secondary"
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--color-blocked)'
-                }}
-                title="Limpiar pizarra"
-                disabled={disabled}
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-
-            {/* Color Selectors */}
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              {['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#ec4899', '#ffffff'].map((c) => (
+          {/* Color palette — hidden when text tool active */}
+          {tool !== 'text' && (
+            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+              {PALETTE.map(c => (
                 <button
                   key={c}
-                  onClick={() => {
-                    setColor(c);
-                    setTool('pencil');
-                  }}
+                  onClick={() => { setColor(c); setTool('pencil'); }}
+                  disabled={disabled || tool === 'eraser'}
+                  title={c}
                   style={{
-                    width: '18px',
-                    height: '18px',
+                    width: '17px',
+                    height: '17px',
                     borderRadius: '50%',
-                    backgroundColor: c,
-                    border: color === c && tool === 'pencil' ? '2px solid #fff' : 'none',
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                    boxShadow: color === c ? `0 0 8px ${c}` : 'none'
+                    background: c,
+                    border: color === c && tool === 'pencil'
+                      ? '2px solid #fff'
+                      : '1px solid rgba(255,255,255,0.15)',
+                    cursor: (disabled || tool === 'eraser') ? 'default' : 'pointer',
+                    boxShadow: color === c && tool === 'pencil' ? `0 0 7px ${c}` : 'none',
+                    flexShrink: 0,
+                    transition: 'all var(--transition-fast)',
                   }}
-                  disabled={disabled}
                 />
               ))}
             </div>
+          )}
 
-            {/* Brush Size */}
+          {/* Brush size — hidden when text tool */}
+          {tool !== 'text' && (
             <input
-              type="range"
-              min="1"
-              max="15"
+              type="range" min="1" max="15"
               value={brushSize}
-              onChange={(e) => setBrushSize(parseInt(e.target.value))}
-              style={{ width: '60px', accentColor: '#6366f1', cursor: disabled ? 'not-allowed' : 'pointer' }}
+              onChange={e => setBrushSize(parseInt(e.target.value))}
               disabled={disabled}
+              style={{ width: '58px', accentColor: '#6366f1', cursor: disabled ? 'not-allowed' : 'pointer' }}
             />
-          </div>
+          )}
 
-          {/* Canvas Draw Space */}
-          <div style={{ flexGrow: 1, position: 'relative', width: '100%' }}>
-            <canvas
-              ref={canvasRef}
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
+          {/* Text box count badge */}
+          {textBoxes.length > 0 && (
+            <span style={{
+              fontSize: '0.75rem',
+              color: '#a5b4fc',
+              background: 'rgba(99,102,241,0.15)',
+              border: '1px solid rgba(99,102,241,0.3)',
+              borderRadius: 'var(--radius-full)',
+              padding: '2px 8px',
+              fontWeight: '600',
+            }}>
+              {textBoxes.length} {textBoxes.length === 1 ? 'nota' : 'notas'}
+            </span>
+          )}
+
+          {/* Clear */}
+          <button
+            onClick={clearCanvas}
+            disabled={disabled}
+            title="Limpiar pizarra"
+            style={{
+              padding: '5px 10px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              background: 'rgba(239,68,68,0.06)',
+              color: '#ef4444',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.78rem',
+              transition: 'all var(--transition-fast)',
+            }}
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+
+        {/* Canvas + text box overlay */}
+        <div
+          ref={containerRef}
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}
+        >
+          <canvas
+            ref={canvasRef}
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            onClick={handleCanvasClick}
+            style={{
+              display: 'block',
+              width: '100%',
+              height: '100%',
+              cursor: canvasCursor,
+              touchAction: 'none',
+            }}
+          />
+
+          {/* Hint when text tool is active and canvas is empty */}
+          {tool === 'text' && !disabled && textBoxes.length === 0 && (
+            <div
               style={{
-                display: 'block',
-                width: '100%',
-                height: '100%',
-                cursor: disabled ? 'not-allowed' : tool === 'eraser' ? 'cell' : 'crosshair'
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                pointerEvents: 'none',
               }}
+            >
+              <Type size={36} style={{ opacity: 0.15 }} />
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', opacity: 0.6 }}>
+                Haz clic en la pizarra para agregar una caja de texto
+              </span>
+            </div>
+          )}
+
+          {/* Hint when pencil tool and canvas is empty */}
+          {tool === 'pencil' && !disabled && textBoxes.length === 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                pointerEvents: 'none',
+              }}
+            >
+              <span style={{
+                fontSize: '0.78rem',
+                color: 'var(--text-muted)',
+                opacity: 0.45,
+                background: 'rgba(0,0,0,0.4)',
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-full)',
+              }}>
+                Dibuja tu solución — usa "Texto" para agregar razonamiento escrito
+              </span>
+            </div>
+          )}
+
+          {/* Text boxes */}
+          {textBoxes.map(box => (
+            <TextBox
+              key={box.id}
+              box={box}
+              active={activeBoxId === box.id}
+              disabled={disabled}
+              onDragStart={handleBoxDragStart}
+              onTextChange={updateBoxText}
+              onKeyDown={recordKeystroke}
+              onFocus={setActiveBoxId}
+              onDelete={deleteBox}
             />
-          </div>
+          ))}
         </div>
       </div>
-      
-      {/* CSS overrides for responsive layout */}
-      <style>{`
-        @media (min-width: 900px) {
-          .desktop-split {
-            grid-template-columns: 4fr 6fr !important;
-            grid-template-rows: 1fr !important;
-          }
-        }
-      `}</style>
+    </div>
+  );
+}
+
+// ── TextBox sub-component ─────────────────────────────────────────────────────
+function TextBox({ box, active, disabled, onDragStart, onTextChange, onKeyDown, onFocus, onDelete }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: box.x,
+        top: box.y,
+        minWidth: '180px',
+        maxWidth: '320px',
+        borderRadius: 'var(--radius-md)',
+        border: `1.5px solid ${active ? '#6366f1' : 'rgba(99,102,241,0.25)'}`,
+        background: 'rgba(10,12,20,0.88)',
+        backdropFilter: 'blur(6px)',
+        boxShadow: active
+          ? '0 0 0 2px rgba(99,102,241,0.15), 0 8px 24px rgba(0,0,0,0.6)'
+          : '0 4px 16px rgba(0,0,0,0.5)',
+        overflow: 'hidden',
+        zIndex: active ? 20 : 10,
+        transition: 'box-shadow var(--transition-fast), border-color var(--transition-fast)',
+      }}
+    >
+      {/* Drag handle */}
+      <div
+        onMouseDown={e => onDragStart(e, box.id)}
+        onClick={e => e.stopPropagation()}
+        style={{
+          padding: '4px 8px 3px',
+          background: active ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.04)',
+          borderBottom: `1px solid ${active ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)'}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: disabled ? 'default' : 'grab',
+          userSelect: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <GripHorizontal size={11} style={{ color: 'var(--text-muted)', opacity: 0.7 }} />
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+            Texto
+          </span>
+        </div>
+        {!disabled && (
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(box.id); }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              padding: '1px',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: '3px',
+              transition: 'color var(--transition-fast)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+          >
+            <X size={11} />
+          </button>
+        )}
+      </div>
+
+      {/* Text input */}
+      <textarea
+        value={box.text}
+        onChange={e => onTextChange(box.id, e.target.value)}
+        onKeyDown={e => {
+          e.stopPropagation();
+          onKeyDown(e.key === 'Backspace' || e.key === 'Delete');
+        }}
+        onClick={e => { e.stopPropagation(); onFocus(box.id); }}
+        onFocus={() => onFocus(box.id)}
+        disabled={disabled}
+        placeholder="Escribe tu razonamiento aquí..."
+        rows={3}
+        style={{
+          width: '100%',
+          padding: '8px 10px',
+          background: 'transparent',
+          border: 'none',
+          color: disabled ? 'var(--text-secondary)' : 'var(--text-primary)',
+          fontFamily: 'var(--font-sans)',
+          fontSize: '0.85rem',
+          lineHeight: '1.55',
+          resize: 'both',
+          outline: 'none',
+          minWidth: '160px',
+          minHeight: '56px',
+        }}
+      />
     </div>
   );
 }

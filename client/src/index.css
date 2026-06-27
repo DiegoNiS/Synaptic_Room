@@ -254,39 +254,14 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
 }
 
-/* Drawing / Editor Canvas */
-.workspace-container {
-  display: grid;
-  grid-template-columns: 1fr;
-  height: calc(100vh - 80px);
-  gap: 20px;
-  padding: 20px;
-}
-
-@media (min-width: 1024px) {
-  .workspace-container {
-    grid-template-columns: 320px 1fr;
-  }
-}
-
-.canvas-textarea {
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: var(--radius-md);
-  padding: 24px;
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: 1.15rem;
-  line-height: 1.6;
-  outline: none;
-  resize: none;
-  transition: border-color var(--transition-fast);
-}
-
-.canvas-textarea:focus {
-  border-color: rgba(255, 255, 255, 0.15);
+/* Student workspace — fills remaining viewport height */
+.student-workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  overflow: hidden;
 }
 
 /* D3 Node Map style overrides */
