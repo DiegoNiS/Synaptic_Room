@@ -95,14 +95,14 @@ export class AgentClient {
           { studentId: tracePayload.studentId, latencyMs },
           'Circuit open — returning degraded response'
         );
-        return this._degradedResponse(tracePayload.studentId);
+        return this._degradedResponse(tracePayload.studentId, 'Circuit breaker open (AI service temporarily disabled)');
       }
 
       log.error(
         { err: error, studentId: tracePayload.studentId, latencyMs },
         'AI analysis failed after all attempts'
       );
-      return this._degradedResponse(tracePayload.studentId);
+      return this._degradedResponse(tracePayload.studentId, error.message);
     }
   }
 
@@ -193,10 +193,11 @@ export class AgentClient {
    * This prevents the UI from breaking when Diego's service goes down.
    *
    * @param {string} studentId
+   * @param {string} [errorMessage]
    * @returns {Object}
    * @private
    */
-  _degradedResponse(studentId) {
+  _degradedResponse(studentId, errorMessage = 'AI service unavailable') {
     return {
       studentId,
       analysis: {
@@ -207,6 +208,7 @@ export class AgentClient {
       },
       processingMs: 0,
       degraded: true,
+      error: errorMessage,
     };
   }
 

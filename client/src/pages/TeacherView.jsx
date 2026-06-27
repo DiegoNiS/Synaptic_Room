@@ -30,7 +30,7 @@ export default function TeacherView({ sessionId, teacherName }) {
     displayName: teacherName,
   };
 
-  const { connected, socketError, nodeMap } = useSocket(auth);
+  const { connected, socketError, nodeMap, aiErrors } = useSocket(auth);
   const [eventLog, setEventLog] = useState([]);
   const [mapSize, setMapSize] = useState({ width: 800, height: 520 });
   const mapContainerRef = useRef(null);
@@ -226,6 +226,32 @@ export default function TeacherView({ sessionId, teacherName }) {
           fontSize: '0.85rem',
         }}>
           ⚠️ <strong>Error:</strong> {socketError}
+        </div>
+      )}
+
+      {/* AI Errors Alert Banner */}
+      {aiErrors && Object.keys(aiErrors).length > 0 && (
+        <div style={{
+          margin: '16px 24px 0',
+          padding: '12px 16px',
+          background: 'rgba(245,158,11,0.12)',
+          border: '1px solid rgba(245,158,11,0.35)',
+          borderRadius: 'var(--radius-md)',
+          color: '#f59e0b',
+          fontSize: '0.85rem',
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          <strong>⚠️ Alertas del Agente de IA (Servicio Degradado):</strong>
+          <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+            {Object.entries(aiErrors).map(([studentId, errorMsg]) => {
+              const studentName = nodeMap?.nodes?.find(n => n.studentId === studentId)?.displayName || `ID ${studentId}`;
+              return (
+                <li key={studentId} style={{ listStyleType: 'disc' }}>
+                  Estudiante <strong>{studentName}</strong>: {errorMsg}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

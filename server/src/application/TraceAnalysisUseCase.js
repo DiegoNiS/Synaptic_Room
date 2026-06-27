@@ -89,6 +89,16 @@ export class TraceAnalysisUseCase {
     // 5. Emit updated node map for the teacher dashboard
     this.io.to(`teacher:${sessionId}`).emit('session:nodeMap', session.toNodeMap());
 
+    // Emit AI error details if degraded, otherwise clear it
+    if (response.degraded) {
+      this.io.to(sessionId).emit('ai:error', {
+        studentId,
+        message: `Error en análisis de IA: ${response.error || 'Servicio no disponible'}`
+      });
+    } else {
+      this.io.to(sessionId).emit('ai:clear-error', { studentId });
+    }
+
     // 6. Log significant state changes to Supabase (fire-and-forget)
     if (updatedStudent.state === 'blocked') {
       this.sessionRepository.logEvent({

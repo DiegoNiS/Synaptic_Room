@@ -17,6 +17,7 @@ export default function StudentView({ studentId, sessionId, displayName }) {
     cognitiveState,
     activeMentorship,
     chatMessages,
+    aiError,
     sendTrace,
     sendChatMessage,
     closeMentorship,
@@ -145,21 +146,42 @@ export default function StudentView({ studentId, sessionId, displayName }) {
         </div>
       </header>
 
-      {/* ── Banners ──────────────────────────────────────────────────────── */}
+      {/* ── Banners ── */}
       {socketError && (
         <div style={{
-          padding: '9px 20px',
-          background: 'rgba(239,68,68,0.12)',
-          borderBottom: '1px solid rgba(239,68,68,0.25)',
+          padding: '10px 24px',
+          background: 'rgba(239,68,68,0.15)',
+          borderBottom: '1px solid rgba(239,68,68,0.3)',
           color: 'var(--color-blocked)',
-          fontSize: '0.82rem',
+          fontSize: '0.85rem',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          flexShrink: 0,
         }}>
           <span>⚠️</span>
           <span><strong>Error de conexión:</strong> {socketError}. Reintentando...</span>
+        </div>
+      )}
+
+      {/* AI Error Warning Card */}
+      {aiError && (
+        <div style={{
+          margin: '12px 24px 0',
+          padding: '12px 16px',
+          background: 'rgba(245,158,11,0.12)',
+          border: '1px solid rgba(245,158,11,0.35)',
+          borderRadius: 'var(--radius-md)',
+          color: '#f59e0b',
+          fontSize: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+          <div>
+            <strong>Aviso del Servidor de IA:</strong> {aiError}. El análisis en tiempo real está degradado y tu estado permanecerá inactivo temporalmente.
+          </div>
         </div>
       )}
 

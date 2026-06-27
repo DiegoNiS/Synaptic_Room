@@ -22,6 +22,8 @@ export function useSocket(auth) {
   const [activeMentorship, setActiveMentorship] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [nodeMap, setNodeMap] = useState({ nodes: [], sessionId: '', updatedAt: 0 });
+  const [aiError, setAiError] = useState(null);
+  const [aiErrors, setAiErrors] = useState({});
 
   // Initialize Socket.io
   useEffect(() => {
@@ -110,6 +112,26 @@ export function useSocket(auth) {
       }
     };
 
+    const onAiError = (data) => {
+      if (auth.role === 'teacher') {
+        setAiErrors((prev) => ({ ...prev, [data.studentId]: data.message }));
+      } else if (data.studentId === auth.studentId) {
+        setAiError(data.message);
+      }
+    };
+
+    const onAiClearError = (data) => {
+      if (auth.role === 'teacher') {
+        setAiErrors((prev) => {
+          const next = { ...prev };
+          delete next[data.studentId];
+          return next;
+        });
+      } else if (data.studentId === auth.studentId) {
+        setAiError(null);
+      }
+    };
+
     // Register events
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -120,6 +142,8 @@ export function useSocket(auth) {
     socket.on('mentorship:ended', onMentorshipEnded);
     socket.on('mentorship:message', onMentorshipMessage);
     socket.on('session:nodeMap', onSessionNodeMap);
+    socket.on('ai:error', onAiError);
+    socket.on('ai:clear-error', onAiClearError);
 
     // Initial connection state check
     if (socket.connected) {
@@ -137,6 +161,8 @@ export function useSocket(auth) {
       socket.off('mentorship:ended', onMentorshipEnded);
       socket.off('mentorship:message', onMentorshipMessage);
       socket.off('session:nodeMap', onSessionNodeMap);
+      socket.off('ai:error', onAiError);
+      socket.off('ai:clear-error', onAiClearError);
       disconnectSocket();
     };
   }, [auth?.studentId, auth?.sessionId, auth?.role, auth?.displayName]);
@@ -196,6 +222,8 @@ export function useSocket(auth) {
     activeMentorship,
     chatMessages,
     nodeMap,
+    aiError,
+    aiErrors,
     sendTrace,
     sendChatMessage,
     closeMentorship,
