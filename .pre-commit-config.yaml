@@ -1,0 +1,43 @@
+# ============================================
+# Synaptic Room — pre-commit hooks (P0-R-006)
+# ============================================
+# Install once:  pip install pre-commit && pre-commit install
+# Runs the same lint/format gates locally that CI enforces, so style problems
+# are caught before they reach a PR.
+# ============================================
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+
+  # Python (agents)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        files: ^agents/
+        args: [--fix]
+      - id: ruff-format
+        files: ^agents/
+
+  # JS/JSX (server + client) — run the local eslint/prettier via npm.
+  - repo: local
+    hooks:
+      - id: server-lint
+        name: server eslint
+        entry: bash -c 'cd server && npx --no-install eslint .'
+        language: system
+        files: ^server/.*\.js$
+        pass_filenames: false
+      - id: client-lint
+        name: client eslint
+        entry: bash -c 'cd client && npx --no-install eslint .'
+        language: system
+        files: ^client/.*\.(js|jsx)$
+        pass_filenames: false

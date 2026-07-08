@@ -31,7 +31,10 @@ export function registerMentorHandler(socket, { mentorshipUseCase, io, socketReg
     const mentorship = mentorshipUseCase.getMentorship(mentorshipId);
     if (!mentorship) return null;
     if (mentorship.mentorId !== studentId && mentorship.menteeId !== studentId) {
-      log.warn({ studentId, mentorshipId }, 'Rejected mentorship event — caller is not a participant');
+      log.warn(
+        { studentId, mentorshipId },
+        'Rejected mentorship event — caller is not a participant'
+      );
       return null;
     }
     const partnerId = mentorship.mentorId === studentId ? mentorship.menteeId : mentorship.mentorId;
@@ -49,7 +52,9 @@ export function registerMentorHandler(socket, { mentorshipUseCase, io, socketReg
   socket.on(SOCKET_INCOMING.MENTORSHIP_CLOSE, async (payload) => {
     try {
       if (!payload?.mentorshipId || !payload?.reason) {
-        socket.emit('session:error', { message: 'Invalid payload: mentorshipId and reason are required' });
+        socket.emit('session:error', {
+          message: 'Invalid payload: mentorshipId and reason are required',
+        });
         return;
       }
       const validReasons = ['resolved', 'timeout', 'manual'];
@@ -63,7 +68,10 @@ export function registerMentorHandler(socket, { mentorshipUseCase, io, socketReg
       }
 
       await mentorshipUseCase.closeMentorship(payload.mentorshipId, studentId, payload.reason);
-      log.info({ studentId, mentorshipId: payload.mentorshipId, reason: payload.reason }, 'Mentorship closed');
+      log.info(
+        { studentId, mentorshipId: payload.mentorshipId, reason: payload.reason },
+        'Mentorship closed'
+      );
     } catch (error) {
       log.error({ err: error, studentId }, 'Error closing mentorship');
       socket.emit('session:error', { message: 'Failed to close mentorship session' });
@@ -98,8 +106,10 @@ export function registerMentorHandler(socket, { mentorshipUseCase, io, socketReg
 
       const { stroke } = payload;
       if (
-        typeof stroke.x0 !== 'number' || typeof stroke.y0 !== 'number' ||
-        typeof stroke.x1 !== 'number' || typeof stroke.y1 !== 'number'
+        typeof stroke.x0 !== 'number' ||
+        typeof stroke.y0 !== 'number' ||
+        typeof stroke.x1 !== 'number' ||
+        typeof stroke.y1 !== 'number'
       ) {
         return;
       }
@@ -108,7 +118,10 @@ export function registerMentorHandler(socket, { mentorshipUseCase, io, socketReg
         mentorshipId: payload.mentorshipId,
         from: studentId,
         stroke: {
-          x0: stroke.x0, y0: stroke.y0, x1: stroke.x1, y1: stroke.y1,
+          x0: stroke.x0,
+          y0: stroke.y0,
+          x1: stroke.x1,
+          y1: stroke.y1,
           color: String(stroke.color || '#6366f1').slice(0, 20),
           brushSize: Math.min(Math.max(Number(stroke.brushSize) || 3, 1), 50),
           tool: stroke.tool === 'eraser' ? 'eraser' : 'pencil',

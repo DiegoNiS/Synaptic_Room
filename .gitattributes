@@ -1,0 +1,26 @@
+# ============================================
+# Synaptic Room — line-ending normalization
+# ============================================
+# Enforce LF in the repository for all text files. Prevents the CRLF/LF churn
+# that OneDrive/Windows checkouts introduce and keeps diffs clean.
+
+* text=auto eol=lf
+
+# Explicitly LF for source and config
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.md   text eol=lf
+*.sql  text eol=lf
+*.sh   text eol=lf
+
+# Binaries — never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

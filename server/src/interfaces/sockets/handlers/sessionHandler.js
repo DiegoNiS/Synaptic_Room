@@ -28,6 +28,9 @@ export function registerSessionHandler(
 
   handleJoin();
   socket.on('disconnect', (reason) => handleLeave(reason));
+  // Idempotent resume: a reconnecting client can ask for its current snapshot
+  // without duplicating nodes or events (P1-R-004).
+  socket.on('session:resume', () => handleResume());
 
   function getOrCreateSession() {
     let session = activeSessions.get(sessionId);
@@ -63,6 +66,7 @@ export function registerSessionHandler(
     if (role === 'teacher') {
       socket.join(`teacher:${sessionId}`);
       session.teacherId = studentId;
+      activeSessions.persist?.(session); // durable + cross-instance (P1)
       log.info({ sessionId, displayName }, 'Teacher joined session');
       // Send the current snapshot immediately to this teacher.
       socket.emit('session:nodeMap', session.toNodeMap());
@@ -74,6 +78,7 @@ export function registerSessionHandler(
     if (!student) {
       student = new Student({ studentId, sessionId, displayName, state: 'idle' });
       session.addStudent(student);
+      activeSessions.persist?.(session); // durable + cross-instance (P1)
     }
 
     log.info(
@@ -95,6 +100,32 @@ export function registerSessionHandler(
 
     // Refresh the teacher dashboard.
     io.to(`teacher:${sessionId}`).emit('session:nodeMap', session.toNodeMap());
+  }
+
+  // Idempotent snapshot re-send for a reconnecting client. Reads current state
+  // (never mutates), so calling it repeatedly cannot duplicate nodes/events.
+  function handleResume() {
+    const session = activeSessions.get(sessionId);
+    if (!session) return;
+
+    if (role === 'teacher') {
+      socket.emit('session:nodeMap', session.toNodeMap());
+      return;
+    }
+
+    const student = session.getStudent(studentId);
+    if (!student) return;
+
+    socket.emit('cognitive:state', {
+      studentId: student.studentId,
+      state: student.state,
+      confidence: student.confidence,
+      blockagePoint: student.blockagePoint,
+    });
+    const activeMentorship = mentorshipUseCase.getActiveMentorshipForStudent(studentId, sessionId);
+    if (activeMentorship) {
+      socket.emit('mentorship:start', activeMentorship.toStartPayload());
+    }
   }
 
   function handleLeave(reason) {
@@ -122,6 +153,7 @@ export function registerSessionHandler(
     }
 
     session.removeStudent(studentId);
+    activeSessions.persist?.(session); // durable + cross-instance (P1)
     traceBuffer.removeStudent(studentId, sessionId);
     log.info(
       { studentId, sessionId, reason, remainingStudents: session.studentCount },

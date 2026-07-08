@@ -133,10 +133,7 @@ export class TraceBuffer {
     try {
       await this.onFlush(buffer.studentId, buffer.sessionId, aggregated);
     } catch (error) {
-      log.error(
-        { err: error, studentId: buffer.studentId },
-        'Error in flush callback'
-      );
+      log.error({ err: error, studentId: buffer.studentId }, 'Error in flush callback');
     } finally {
       buffer.pendingAnalysis = false;
     }

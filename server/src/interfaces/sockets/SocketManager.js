@@ -11,6 +11,7 @@
 // ============================================
 
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { getCorsOptions } from '../../config/cors.js';
 import { socketAuthMiddleware } from './middlewares/socketAuth.js';
 import { registerSessionHandler } from './handlers/sessionHandler.js';
@@ -42,14 +43,25 @@ export function createSocketManager(httpServer, deps) {
       credentials: corsOptions.credentials,
     },
     // Performance tuning for high-frequency events
-    pingInterval: 10000,      // Heartbeat every 10s
-    pingTimeout: 5000,        // Consider disconnected after 5s no response
-    maxHttpBufferSize: 1e5,   // 100KB max per message (prevents abuse)
+    pingInterval: 10000, // Heartbeat every 10s
+    pingTimeout: 5000, // Consider disconnected after 5s no response
+    maxHttpBufferSize: 1e5, // 100KB max per message (prevents abuse)
     connectionStateRecovery: {
       maxDisconnectionDuration: 30_000, // 30s recovery window
       skipMiddlewares: false,
     },
   });
+
+  // ── Horizontal scale: Redis adapter for multi-instance fan-out (P1-R-002) ──
+  // With the adapter, `io.to(room).emit(...)` reaches clients connected to ANY
+  // instance. Without Redis (single instance / dev) we run the default adapter.
+  if (deps.socketAdapterClients) {
+    const { pubClient, subClient } = deps.socketAdapterClients;
+    io.adapter(createAdapter(pubClient, subClient));
+    log.info('Socket.io Redis adapter enabled — horizontal scale ready');
+  } else {
+    log.warn('Socket.io running with the in-memory adapter (single instance only)');
+  }
 
   // ── Global Middleware ──
   io.use(socketAuthMiddleware);

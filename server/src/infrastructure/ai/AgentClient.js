@@ -14,7 +14,7 @@
 // ============================================
 
 import { env } from '../../config/env.js';
-import { CircuitBreaker } from './CircuitBreaker.js';
+import { DistributedCircuitBreaker } from './DistributedCircuitBreaker.js';
 import { retryWithBackoff } from '../../utils/retry.js';
 import { createComponentLogger } from '../../utils/logger.js';
 
@@ -26,6 +26,8 @@ export class AgentClient {
    * @param {string} [options.baseUrl] - FastAPI base URL
    * @param {number} [options.timeoutMs] - Request timeout
    * @param {number} [options.maxRetries] - Max retry attempts
+   * @param {import('ioredis').Redis|null} [options.redisClient] - Enables cross-instance breaker coordination.
+   * @param {string} [options.instanceId]
    */
   constructor(options = {}) {
     this.baseUrl = options.baseUrl || env.AI_AGENT_BASE_URL;
@@ -33,21 +35,34 @@ export class AgentClient {
     this.maxRetries = options.maxRetries || env.AI_AGENT_MAX_RETRIES;
     this.apiKey = options.apiKey || env.AGENT_API_KEY;
 
+    const redis = options.redisClient || null;
+    const instanceId = options.instanceId || 'local';
+
     // Independent circuit breakers per endpoint: a flaky /match-mentor must
-    // not blackout /analyze (they are separate failure domains).
-    this.analyzeBreaker = new CircuitBreaker({
+    // not blackout /analyze (they are separate failure domains). The
+    // distributed breaker degrades to single-instance behavior when redis=null.
+    this.analyzeBreaker = new DistributedCircuitBreaker({
       name: 'ai-analyze',
       failureThreshold: env.CB_FAILURE_THRESHOLD,
       resetTimeoutMs: env.CB_RESET_TIMEOUT_MS,
+      redis,
+      instanceId,
     });
-    this.matchBreaker = new CircuitBreaker({
+    this.matchBreaker = new DistributedCircuitBreaker({
       name: 'ai-match',
       failureThreshold: env.CB_FAILURE_THRESHOLD,
       resetTimeoutMs: env.CB_RESET_TIMEOUT_MS,
+      redis,
+      instanceId,
     });
 
     log.info(
-      { baseUrl: this.baseUrl, timeoutMs: this.timeoutMs, maxRetries: this.maxRetries, authenticated: Boolean(this.apiKey) },
+      {
+        baseUrl: this.baseUrl,
+        timeoutMs: this.timeoutMs,
+        maxRetries: this.maxRetries,
+        authenticated: Boolean(this.apiKey),
+      },
       'AI Agent client initialized'
     );
   }
@@ -81,16 +96,13 @@ export class AgentClient {
 
     try {
       const result = await this.analyzeBreaker.execute(() =>
-        retryWithBackoff(
-          () => this._postWithTimeout('/analyze', tracePayload),
-          {
-            maxRetries: this.maxRetries,
-            baseDelayMs: 500,
-            maxDelayMs: 3000,
-            operationName: `analyze(${tracePayload.studentId})`,
-            shouldRetry: (err) => this._shouldRetry(err),
-          }
-        )
+        retryWithBackoff(() => this._postWithTimeout('/analyze', tracePayload), {
+          maxRetries: this.maxRetries,
+          baseDelayMs: 500,
+          maxDelayMs: 3000,
+          operationName: `analyze(${tracePayload.studentId})`,
+          shouldRetry: (err) => this._shouldRetry(err),
+        })
       );
 
       const latencyMs = Date.now() - startTime;
@@ -109,7 +121,10 @@ export class AgentClient {
           { studentId: tracePayload.studentId, latencyMs },
           'Circuit open — returning degraded response'
         );
-        return this._degradedResponse(tracePayload.studentId, 'Circuit breaker open (AI service temporarily disabled)');
+        return this._degradedResponse(
+          tracePayload.studentId,
+          'Circuit breaker open (AI service temporarily disabled)'
+        );
       }
 
       log.error(
@@ -134,26 +149,31 @@ export class AgentClient {
     const startTime = Date.now();
     try {
       const result = await this.matchBreaker.execute(() =>
-        retryWithBackoff(
-          () => this._postWithTimeout('/match-mentor', matchPayload),
-          {
-            maxRetries: this.maxRetries,
-            baseDelayMs: 500,
-            maxDelayMs: 3000,
-            operationName: `matchMentor(${matchPayload.blockedStudentId})`,
-            shouldRetry: (err) => this._shouldRetry(err),
-          }
-        )
+        retryWithBackoff(() => this._postWithTimeout('/match-mentor', matchPayload), {
+          maxRetries: this.maxRetries,
+          baseDelayMs: 500,
+          maxDelayMs: 3000,
+          operationName: `matchMentor(${matchPayload.blockedStudentId})`,
+          shouldRetry: (err) => this._shouldRetry(err),
+        })
       );
 
       const latencyMs = Date.now() - startTime;
       log.info(
-        { blockedStudentId: matchPayload.blockedStudentId, latencyMs, mentorId: result?.mentorId, matchScore: result?.matchScore },
+        {
+          blockedStudentId: matchPayload.blockedStudentId,
+          latencyMs,
+          mentorId: result?.mentorId,
+          matchScore: result?.matchScore,
+        },
         'AI mentor matchmaking completed'
       );
       return result;
     } catch (error) {
-      log.error({ err: error, blockedStudentId: matchPayload.blockedStudentId }, 'Cognitive Mesh matchmaking failed');
+      log.error(
+        { err: error, blockedStudentId: matchPayload.blockedStudentId },
+        'Cognitive Mesh matchmaking failed'
+      );
       return { mentorId: 'none', blockedId: matchPayload.blockedStudentId, matchScore: 0 };
     }
   }

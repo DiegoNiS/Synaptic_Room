@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
+import { computeWindowMetrics } from '../lib/traceMetrics.js';
 
 /**
  * Hook to track writing behavior across one or more text boxes on the whiteboard.
@@ -43,26 +44,18 @@ export function useTracker(onFlush, intervalMs = 2000) {
 
     const timer = setInterval(() => {
       const now = Date.now();
-      const text = textRef.current;
-      const elapsedMinutes = (now - intervalStartRef.current) / 60000;
 
-      let wpm = 0;
-      if (elapsedMinutes > 0) {
-        wpm = Math.round((keystrokesRef.current / 5) / elapsedMinutes);
-      }
-
-      let pauseDurationMs = maxPauseRef.current;
-      const idleTime = now - lastKeyTimeRef.current;
-      if (idleTime > pauseDurationMs) pauseDurationMs = idleTime;
-
-      onFlush({
-        wpm: wpm || 0,
-        pauseDurationMs: Math.round(pauseDurationMs),
-        deletionCount: deletionsRef.current,
-        keystrokeCount: keystrokesRef.current,
-        pasteCount: pasteCountRef.current,
-        textSnapshot: text || '',
-      });
+      onFlush(
+        computeWindowMetrics({
+          keystrokes: keystrokesRef.current,
+          deletions: deletionsRef.current,
+          pasteCount: pasteCountRef.current,
+          maxPauseMs: maxPauseRef.current,
+          idleMs: now - lastKeyTimeRef.current,
+          elapsedMs: now - intervalStartRef.current,
+          textSnapshot: textRef.current,
+        })
+      );
 
       keystrokesRef.current = 0;
       deletionsRef.current = 0;

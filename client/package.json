@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "echo 'No lint specified'",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check \"src/**/*.{js,jsx,css}\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -18,9 +22,22 @@
     "socket.io-client": "^4.7.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.9.0",
     "@types/react": "^18.2.56",
     "@types/react-dom": "^18.2.19",
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.1.4"
+    "@vitest/coverage-v8": "^2.0.5",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^15.9.0",
+    "prettier": "^3.3.3",
+    "vite": "^5.1.4",
+    "vitest": "^2.0.5"
+  },
+  "overrides": {
+    "eslint-plugin-react-hooks": {
+      "eslint": "^9.9.0"
+    }
   }
 }

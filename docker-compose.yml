@@ -1,11 +1,118 @@
+# ============================================
+# Synaptic Room — Full local stack (one command)
+# ============================================
+# Bring up the ENTIRE system with:
+#
+#     docker compose up --build
+#
+# Services: redis -> agents -> server -> client, started in dependency order
+# with health checks. Configuration is read from the `.env` file next to this
+# compose file (copy `.env.example` to `.env`).
+#
+# Frictionless by design: the only value you MUST provide is GEMINI_API_KEY.
+# The auth secrets have safe DEV defaults so the stack boots out of the box;
+# override them (and set NEXORA_DEV_INSECURE=false, NODE_ENV=production) for a
+# real deployment.
+#
+# URLs once up:
+#   Client (UI):   http://localhost:5174
+#   Server API:    http://localhost:3001  (/healthz, /readyz, /health)
+#   Agents API:    http://localhost:8000
+# ============================================
+
 services:
+  # ── Durable hot state + Socket.io fan-out (Phase 1) ──
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+  # ── AI agents (FastAPI + Gemini) ──
+  agents:
+    build:
+      context: ./agents
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./agents
+          target: /app
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:?Set GEMINI_API_KEY in your .env (copy .env.example to .env)}
+      # Same shared secret as the server so the server -> agents channel is authenticated.
+      - AGENT_API_KEY=${AGENT_API_KEY:-nexora_dev_agent_api_key_change_me_0123456789}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ── Realtime server (Node + Socket.io) ──
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./server
+          target: /app
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=${NODE_ENV:-development}
+      # Frictionless local run: no auth needed. Set to false for a secure run.
+      - NEXORA_DEV_INSECURE=${NEXORA_DEV_INSECURE:-true}
+      - AI_AGENT_BASE_URL=http://agents:8000
+      - AI_AGENT_TIMEOUT_MS=15000
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5174}
+      # Durable, horizontally-scalable state via the redis service (Phase 1).
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - STATE_HOT_TTL_S=${STATE_HOT_TTL_S:-7200}
+      # Auth secrets — safe DEV defaults so the stack boots; override in .env for prod.
+      - JOIN_TOKEN_SECRET=${JOIN_TOKEN_SECRET:-nexora_dev_join_secret_change_me_0123456789}
+      - AGENT_API_KEY=${AGENT_API_KEY:-nexora_dev_agent_api_key_change_me_0123456789}
+      - TEACHER_PASSCODE=${TEACHER_PASSCODE:-123456}
+      # Supabase (optional: absent = in-memory persistence, not a mock).
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      agents:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Web client (React + Vite, served by nginx) ──
   client:
     build:
       context: ./client
+      args:
+        # Baked into the built assets (Vite reads env at BUILD time). Points the
+        # browser at the server's published port.
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-http://localhost:3001}
+    restart: unless-stopped
     ports:
       - "5174:80"
-    environment:
-      - VITE_SERVER_URL=http://localhost:3001
     depends_on:
       server:
         condition: service_healthy
@@ -15,42 +122,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
-
-  server:
-    build:
-      context: ./server
-    ports:
-      - "3001:3001"
-    environment:
-      - PORT=3001
-      - NODE_ENV=development
-      - AI_AGENT_BASE_URL=http://agents:8000
-      - CORS_ORIGIN=http://localhost:5174
-      - SUPABASE_URL=${SUPABASE_URL:-https://mock.supabase.co}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-mock_key}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-mock_service_key}
-      - AI_AGENT_TIMEOUT_MS=15000
-    depends_on:
-      agents:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  agents:
-    build:
-      context: ./agents
-    ports:
-      - "8000:8000"
-    environment:
-      - PORT=8000
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 15s

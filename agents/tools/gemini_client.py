@@ -10,10 +10,10 @@ Responsibilities:
   the model returns guaranteed-shaped JSON.
 """
 
-import os
-import json
 import asyncio
+import json
 import logging
+import os
 
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -22,7 +22,7 @@ load_dotenv()
 
 logger = logging.getLogger("synaptic.gemini")
 
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 TIMEOUT_S = float(os.getenv("GEMINI_TIMEOUT_S", "12"))
 
 _API_KEY = os.getenv("GEMINI_API_KEY")

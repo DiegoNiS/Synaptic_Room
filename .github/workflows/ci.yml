@@ -1,0 +1,100 @@
+# ============================================
+# Synaptic Room — Continuous Integration
+# ============================================
+# Per-package matrix (server / client / agents). Every job must pass for a PR
+# to be mergeable — configure the three jobs below as required status checks in
+# branch protection (P0-R-004). Coverage thresholds are enforced in each job
+# and may only ratchet up (P0-R-005).
+# ============================================
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server (node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format
+      - name: Docs/env sync check
+        run: npm run check:env-docs
+      - name: Test + coverage (thresholds enforced)
+        run: npm run test:coverage
+
+  client:
+    name: client (node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Test + coverage
+        run: npm run test:coverage
+      - name: Build
+        run: npm run build
+
+  agents:
+    name: agents (python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agents
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Format check (ruff)
+        run: ruff format --check .
+      - name: Test
+        run: pytest -q
+
+  # Gate that PR bodies reference an SDD task id (P0-R-009). Kept here so the
+  # governance check runs in the same required-checks set.
+  sdd-trace:
+    name: sdd-trace (PR references a task)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR body references P#-T-###
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          echo "$PR_BODY" | grep -Eq 'P[0-9]+-T-[0-9]{3}' \
+            || { echo "::error::PR body must reference at least one SDD task id (e.g. P0-T-005)"; exit 1; }

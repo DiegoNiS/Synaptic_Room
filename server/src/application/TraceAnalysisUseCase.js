@@ -26,13 +26,13 @@ const log = createComponentLogger('trace-analysis');
 
 // ── Heuristic thresholds (tunable) ──────────────────────────────────
 const THRESHOLDS = {
-  FLOW_WPM_MIN: 10,           // WPM above this → likely in flow
-  FLOW_BACKSPACE_MAX: 0.15,   // Low deletion ratio → not struggling
-  BLOCKED_WPM_MAX: 5,         // WPM below this → likely blocked
-  BLOCKED_PAUSE_MS: 8000,     // Pause longer than 8s → likely blocked
-  BLOCKED_BACKSPACE_MIN: 0.30, // High deletion → struggling
-  IDLE_PAUSE_MS: 3000,        // Pause between 3-8s → processing/idle
-  FRAUD_PASTE_MAX: 1,         // Pasting code is heavily penalized
+  FLOW_WPM_MIN: 10, // WPM above this → likely in flow
+  FLOW_BACKSPACE_MAX: 0.15, // Low deletion ratio → not struggling
+  BLOCKED_WPM_MAX: 5, // WPM below this → likely blocked
+  BLOCKED_PAUSE_MS: 8000, // Pause longer than 8s → likely blocked
+  BLOCKED_BACKSPACE_MIN: 0.3, // High deletion → struggling
+  IDLE_PAUSE_MS: 3000, // Pause between 3-8s → processing/idle
+  FRAUD_PASTE_MAX: 1, // Pasting code is heavily penalized
 };
 
 export class TraceAnalysisUseCase {
@@ -96,7 +96,7 @@ export class TraceAnalysisUseCase {
     // ── BLOCKED: Multiple strong signals of struggle ──
     // Condition 1: Very low WPM + high deletion ratio
     if (wpm < THRESHOLDS.BLOCKED_WPM_MAX && backspaceRatio >= THRESHOLDS.BLOCKED_BACKSPACE_MIN) {
-      return { state: 'blocked', confidence: 0.80 };
+      return { state: 'blocked', confidence: 0.8 };
     }
     // Condition 2: Long pause (student completely stopped)
     if (pauseDurationMs >= THRESHOLDS.BLOCKED_PAUSE_MS) {
@@ -104,7 +104,7 @@ export class TraceAnalysisUseCase {
     }
     // Condition 3: Extremely low WPM (almost no output)
     if (wpm < THRESHOLDS.BLOCKED_WPM_MAX && pauseDurationMs >= THRESHOLDS.IDLE_PAUSE_MS) {
-      return { state: 'blocked', confidence: 0.70 };
+      return { state: 'blocked', confidence: 0.7 };
     }
 
     // ── IDLE: In between — could be thinking, reading, etc. ──
@@ -202,7 +202,12 @@ export class TraceAnalysisUseCase {
         finalBlockagePoint = this._sanitizeBlockagePoint(response.analysis.blockagePoint);
 
         log.info(
-          { studentId, aiState: finalState, aiConfidence: finalConfidence, blockagePoint: finalBlockagePoint },
+          {
+            studentId,
+            aiState: finalState,
+            aiConfidence: finalConfidence,
+            blockagePoint: finalBlockagePoint,
+          },
           'AI deep analysis completed'
         );
       }
@@ -218,6 +223,7 @@ export class TraceAnalysisUseCase {
     });
 
     session.updateStudent(updatedStudent);
+    this.activeSessions.persist?.(session); // durable + cross-instance (P1)
 
     // ──────────────────────────────────────────────────────────────
     // STEP 4: Emit state change to the session room

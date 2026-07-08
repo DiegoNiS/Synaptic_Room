@@ -1,8 +1,7 @@
 import logging
-from typing import List
 
 from gemini_agent import Agent, AgentError
-from models.schemas import MentorProfile, MatchMentorResponse
+from models.schemas import MatchMentorResponse, MentorProfile
 
 logger = logging.getLogger("synaptic.cognitive_mesh")
 
@@ -36,7 +35,7 @@ SYSTEM_INSTRUCTION = (
 
 cognitive_mesh_agent = Agent(
     name="Cognitive Mesh AI",
-    model="gemini-1.5-flash",
+    model="gemini-2.5-flash",
     system_instruction=SYSTEM_INSTRUCTION,
     response_schema=MatchMentorResponse,
 )
@@ -44,7 +43,7 @@ cognitive_mesh_agent = Agent(
 
 def _best_by_confidence(
     blocked_id: str,
-    mentors: List[MentorProfile],
+    mentors: list[MentorProfile],
     score_factor: float = 0.8,
 ) -> MatchMentorResponse:
     best = max(mentors, key=lambda m: m.confidence)
@@ -57,7 +56,7 @@ def _best_by_confidence(
 
 async def run_cognitive_mesh(
     blocked_id: str,
-    available_mentors: List[MentorProfile],
+    available_mentors: list[MentorProfile],
     blockage_point: str = None,
 ) -> MatchMentorResponse:
     """Select the best mentor. Deterministic for 0/1 candidates; AI-assisted
@@ -87,8 +86,8 @@ async def run_cognitive_mesh(
         f"ESTUDIANTE BLOQUEADO: {blocked_id}\n"
         f"PUNTO DE BLOQUEO: {blockage_point or 'No identificado específicamente'}\n\n"
         f"MENTORES DISPONIBLES:\n" + "\n".join(mentor_descriptions) + "\n\n"
-        f"Selecciona al mejor mentor considerando compatibilidad de desafío, "
-        f"confianza IA y tiempo en flujo. Calcula un matchScore justificado."
+        "Selecciona al mejor mentor considerando compatibilidad de desafío, "
+        "confianza IA y tiempo en flujo. Calcula un matchScore justificado."
     )
 
     try:

@@ -11,8 +11,10 @@ export default function LandingPage() {
   const [role, setRole] = useState('student'); // 'student' | 'teacher'
   const [displayName, setDisplayName] = useState('');
   const [sessionId, setSessionId] = useState('');
+  const [passcode, setPasscode] = useState('');
   const [nameError, setNameError] = useState('');
   const [sessionError, setSessionError] = useState('');
+  const [passcodeError, setPasscodeError] = useState('');
 
   const handleJoin = (e) => {
     e.preventDefault();
@@ -34,11 +36,18 @@ export default function LandingPage() {
 
     if (!valid) return;
 
+    if (role === 'teacher' && !passcode.trim()) {
+      setPasscodeError('Ingresa la clave de profesor');
+      return;
+    } else {
+      setPasscodeError('');
+    }
+
     const studentId = generateId();
     const cleanSession = sessionId.trim().toLowerCase().replace(/\s+/g, '-');
 
     if (role === 'teacher') {
-      navigate(`/teacher?session=${encodeURIComponent(cleanSession)}&name=${encodeURIComponent(displayName.trim())}`);
+      navigate(`/teacher?session=${encodeURIComponent(cleanSession)}&name=${encodeURIComponent(displayName.trim())}&passcode=${encodeURIComponent(passcode.trim())}`);
     } else {
       navigate(`/student/${studentId}?session=${encodeURIComponent(cleanSession)}&name=${encodeURIComponent(displayName.trim())}`);
     }
@@ -204,6 +213,24 @@ export default function LandingPage() {
                   Todos los participantes deben usar el mismo código para estar en la misma sala.
                 </div>
               </div>
+
+              {/* Passcode (Only for teachers) */}
+              {role === 'teacher' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: '500' }}>
+                    Clave de acceso (Docente)
+                  </label>
+                  <input
+                    className="input-field"
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                    type="password"
+                    placeholder="123456"
+                    value={passcode}
+                    onChange={e => setPasscode(e.target.value)}
+                  />
+                  {passcodeError && <div style={{ color: 'var(--color-blocked)', fontSize: '0.8rem', marginTop: '4px' }}>{passcodeError}</div>}
+                </div>
+              )}
 
               <button
                 type="submit"

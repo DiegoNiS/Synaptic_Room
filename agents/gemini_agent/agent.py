@@ -8,7 +8,7 @@ apply its own domain-appropriate fallback instead of crashing the request.
 
 import logging
 
-from tools.gemini_client import generate_json, GeminiError
+from tools.gemini_client import GeminiError, generate_json
 
 logger = logging.getLogger("synaptic.agent")
 

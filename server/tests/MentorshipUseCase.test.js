@@ -381,18 +381,12 @@ describe('MentorshipUseCase', () => {
       activeSessions.set(SESSION_ID, session);
 
       const mentorship = await useCase.attemptMatch(SESSION_ID, 's-blocked');
-      assert.strictEqual(
-        useCase.getActiveMentorshipForStudent('s-mentor', SESSION_ID),
-        mentorship
-      );
+      assert.strictEqual(useCase.getActiveMentorshipForStudent('s-mentor', SESSION_ID), mentorship);
       assert.strictEqual(
         useCase.getActiveMentorshipForStudent('s-blocked', SESSION_ID),
         mentorship
       );
-      assert.strictEqual(
-        useCase.getActiveMentorshipForStudent('ghost', SESSION_ID),
-        null
-      );
+      assert.strictEqual(useCase.getActiveMentorshipForStudent('ghost', SESSION_ID), null);
     });
   });
 });

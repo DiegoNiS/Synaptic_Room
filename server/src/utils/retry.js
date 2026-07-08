@@ -12,7 +12,7 @@ const log = createComponentLogger('retry');
 
 /**
  * Executes an async function with exponential backoff retries.
- * 
+ *
  * @param {() => Promise<T>} fn - The async function to retry
  * @param {Object} options
  * @param {number} [options.maxRetries=3] - Maximum number of retry attempts
@@ -42,10 +42,7 @@ export async function retryWithBackoff(fn, options = {}) {
 
       // Don't retry if the error is non-retryable
       if (!shouldRetry(error)) {
-        log.warn(
-          { err: error, attempt, operationName },
-          'Non-retryable error, aborting'
-        );
+        log.warn({ err: error, attempt, operationName }, 'Non-retryable error, aborting');
         throw error;
       }
 

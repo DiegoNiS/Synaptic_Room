@@ -77,10 +77,16 @@ export class MentorshipUseCase {
         });
         if (matchResult && matchResult.mentorId && matchResult.mentorId !== 'none') {
           mentorId = matchResult.mentorId;
-          log.info({ blockedStudentId, mentorId, matchScore: matchResult.matchScore }, 'AI match found via Cognitive Mesh');
+          log.info(
+            { blockedStudentId, mentorId, matchScore: matchResult.matchScore },
+            'AI match found via Cognitive Mesh'
+          );
         }
       } catch (error) {
-        log.warn({ err: error, blockedStudentId }, 'AI mentor matching failed, falling back to heuristic');
+        log.warn(
+          { err: error, blockedStudentId },
+          'AI mentor matching failed, falling back to heuristic'
+        );
       }
     }
 
@@ -120,8 +126,9 @@ export class MentorshipUseCase {
     const updatedMentee = blockedStudent.withMentorship(mentorship.mentorshipId);
     session.updateStudent(updatedMentor);
     session.updateStudent(updatedMentee);
+    this.activeSessions.persist?.(session); // durable + cross-instance (P1)
 
-    // Store the active mentorship
+    // Store the active mentorship (write-through to durable state)
     this.activeMentorships.set(mentorship.mentorshipId, mentorship);
 
     // Notify both students via Socket.io
@@ -185,6 +192,7 @@ export class MentorshipUseCase {
       const clearedMentee = mentee ? mentee.withMentorshipCleared({ restore: false }) : null;
       if (clearedMentor) session.updateStudent(clearedMentor);
       if (clearedMentee) session.updateStudent(clearedMentee);
+      this.activeSessions.persist?.(session); // durable + cross-instance (P1)
 
       // Notify the room the mentorship ended
       this.io.to(mentorship.sessionId).emit('mentorship:ended', {
@@ -206,10 +214,7 @@ export class MentorshipUseCase {
       }
 
       // Update teacher dashboard
-      this.io.to(`teacher:${mentorship.sessionId}`).emit(
-        'session:nodeMap',
-        session.toNodeMap()
-      );
+      this.io.to(`teacher:${mentorship.sessionId}`).emit('session:nodeMap', session.toNodeMap());
     }
 
     log.info({ mentorshipId, reason, closedBy }, 'Mentorship closed');

@@ -120,4 +120,33 @@ export class Mentorship {
       mentorInstructions: this.mentorInstructions,
     };
   }
+
+  /**
+   * Serializes the full mentorship for durable storage (Redis/Postgres).
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      mentorshipId: this.mentorshipId,
+      sessionId: this.sessionId,
+      mentorId: this.mentorId,
+      mentorName: this.mentorName,
+      menteeId: this.menteeId,
+      menteeName: this.menteeName,
+      topic: this.topic,
+      status: this.status,
+      createdAt: this.createdAt,
+      expiresAt: this.expiresAt,
+      mentorInstructions: this.mentorInstructions,
+    };
+  }
+
+  /**
+   * Rebuilds a Mentorship from its serialized form.
+   * @param {Object} data
+   * @returns {Mentorship}
+   */
+  static fromJSON(data) {
+    return new Mentorship(data);
+  }
 }

@@ -18,8 +18,7 @@ import { createComponentLogger } from '../../../utils/logger.js';
 
 const log = createComponentLogger('auth');
 
-const clean = (val, max) =>
-  typeof val === 'string' ? val.trim().slice(0, max) : '';
+const clean = (val, max) => (typeof val === 'string' ? val.trim().slice(0, max) : '');
 
 export function createAuthRouter() {
   const router = Router();
@@ -46,9 +45,7 @@ export function createAuthRouter() {
     // supplied id (for reconnects) or receive a fresh server-generated one.
     const suppliedId = clean(body.studentId, 64);
     const resolvedId =
-      userRole === 'teacher'
-        ? `teacher-${sessionId}`
-        : suppliedId || `stu-${randomUUID()}`;
+      userRole === 'teacher' ? `teacher-${sessionId}` : suppliedId || `stu-${randomUUID()}`;
 
     const identity = { studentId: resolvedId, sessionId, role: userRole, displayName };
 

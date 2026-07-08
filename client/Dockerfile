@@ -1,10 +1,13 @@
 # Build stage
 FROM node:20-alpine as build
 WORKDIR /app
+# VITE_SERVER_URL is a BUILD-time value: Vite bakes env vars into the bundle at
+# build. docker-compose passes it via build args (defaults to localhost:3001).
+ARG VITE_SERVER_URL=http://localhost:3001
+ENV VITE_SERVER_URL=$VITE_SERVER_URL
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 COPY . .
-# We build the frontend assets. Ensure VITE_SERVER_URL is injected correctly if building for a specific environment.
 RUN npm run build
 
 # Production serve stage

@@ -13,16 +13,17 @@ import { env } from './env.js';
  * @returns {import('cors').CorsOptions}
  */
 export function getCorsOptions() {
-  const allowedOrigins = env.NODE_ENV === 'production'
-    ? [env.CORS_ORIGIN]
-    : [
-        env.CORS_ORIGIN,
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:3000',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:5174',
-      ];
+  const allowedOrigins =
+    env.NODE_ENV === 'production'
+      ? [env.CORS_ORIGIN]
+      : [
+          env.CORS_ORIGIN,
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://localhost:3000',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:5174',
+        ];
 
   return {
     origin: (origin, callback) => {

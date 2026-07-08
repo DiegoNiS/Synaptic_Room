@@ -1,13 +1,13 @@
-import os
 import logging
+import os
 import traceback
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from models.schemas import AnalyzeRequest, AnalyzeResponse, MatchMentorRequest, MatchMentorResponse
-from agents.process_trace import run_process_trace
 from agents.cognitive_mesh import run_cognitive_mesh
+from agents.process_trace import run_process_trace
+from models.schemas import AnalyzeRequest, AnalyzeResponse, MatchMentorRequest, MatchMentorResponse
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -18,7 +18,9 @@ logger = logging.getLogger("synaptic.api")
 # Shared secret required from the Node server. Empty = dev mode (no auth).
 AGENT_API_KEY = os.getenv("AGENT_API_KEY", "").strip()
 # Server-to-server only: the browser never calls this API directly.
-ALLOWED_ORIGINS = [o.strip() for o in os.getenv("AGENT_ALLOWED_ORIGINS", "").split(",") if o.strip()]
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv("AGENT_ALLOWED_ORIGINS", "").split(",") if o.strip()
+]
 
 app = FastAPI(
     title="Synaptic Room - AI Agents API",
@@ -78,10 +80,12 @@ async def analyze_trace(request: AnalyzeRequest):
         )
     except Exception as e:  # noqa: BLE001 - run_process_trace degrades internally; this is a last resort
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Process Trace error: {e}")
+        raise HTTPException(status_code=500, detail=f"Process Trace error: {e}") from e
 
 
-@app.post("/match-mentor", response_model=MatchMentorResponse, dependencies=[Depends(require_agent_key)])
+@app.post(
+    "/match-mentor", response_model=MatchMentorResponse, dependencies=[Depends(require_agent_key)]
+)
 async def match_mentor(request: MatchMentorRequest):
     """Select the best available mentor for a blocked student."""
     try:
@@ -90,4 +94,4 @@ async def match_mentor(request: MatchMentorRequest):
         )
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Cognitive Mesh error: {e}")
+        raise HTTPException(status_code=500, detail=f"Cognitive Mesh error: {e}") from e

@@ -439,6 +439,13 @@ Agente ADK que selecciona el mejor mentor disponible para un estudiante bloquead
 
 ## Variables de entorno
 
+> **Seguridad por defecto (NN-4).** El servidor **no arranca** si faltan los secretos
+> `JOIN_TOKEN_SECRET`, `AGENT_API_KEY` o `TEACHER_PASSCODE`. No existe un modo dev abierto por defecto:
+> para desarrollo local sin autenticación hay que fijar **explícitamente** `NEXORA_DEV_INSECURE=true`
+> (queda bloqueado si `NODE_ENV=production`). La lista completa y documentada de variables del backend
+> está en [`server/.env.example`](server/.env.example); un check de CI (`npm run check:env-docs`)
+> verifica que el código y ese archivo estén sincronizados. Genera secretos con `openssl rand -hex 32`.
+
 Crear un archivo `.env` en la raíz del proyecto con las siguientes variables:
 
 ```env

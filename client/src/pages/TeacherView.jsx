@@ -15,12 +15,13 @@ import { Wifi, WifiOff } from 'lucide-react';
  *   - Panel lateral de detalle de alumno
  *   - Feed de actividad + Resumen IA
  */
-export default function TeacherView({ sessionId, teacherName }) {
+export default function TeacherView({ sessionId, teacherName, passcode }) {
   const auth = {
     studentId: `teacher-${sessionId}`,
     sessionId,
     role: 'teacher',
     displayName: teacherName,
+    passcode,
   };
 
   const { connected, socketError, nodeMap, aiErrors } = useSocket(auth);

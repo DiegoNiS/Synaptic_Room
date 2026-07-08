@@ -30,6 +30,7 @@ function TeacherRoute() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session');
   const teacherName = searchParams.get('name') || 'Docente';
+  const passcode = searchParams.get('passcode') || '';
 
   if (!sessionId) {
     return <Navigate to="/" replace />;
@@ -39,6 +40,7 @@ function TeacherRoute() {
     <TeacherView
       sessionId={sessionId}
       teacherName={teacherName}
+      passcode={passcode}
     />
   );
 }

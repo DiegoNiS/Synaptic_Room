@@ -156,4 +156,34 @@ export class Student {
       connections: this.activeMentorshipId ? [this.activeMentorshipId] : [],
     };
   }
+
+  /**
+   * Serializes the FULL state for durable storage (Redis/Postgres). Unlike
+   * {@link toNodeMapEntry}, this preserves every field needed to reconstruct
+   * the exact entity after a restart or on another instance.
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      studentId: this.studentId,
+      sessionId: this.sessionId,
+      displayName: this.displayName,
+      state: this.state,
+      confidence: this.confidence,
+      blockagePoint: this.blockagePoint,
+      activeMentorshipId: this.activeMentorshipId,
+      stateChangedAt: this.stateChangedAt,
+      preMentorshipState: this.preMentorshipState,
+      preMentorshipConfidence: this.preMentorshipConfidence,
+    };
+  }
+
+  /**
+   * Rebuilds a Student from its serialized form.
+   * @param {Object} data
+   * @returns {Student}
+   */
+  static fromJSON(data) {
+    return new Student(data);
+  }
 }

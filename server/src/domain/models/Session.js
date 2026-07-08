@@ -69,7 +69,7 @@ export class Session {
    * 1. Must be in 'flow' state with confidence >= 0.7
    * 2. Must not be currently in a mentorship
    * 3. Highest confidence wins (they understand the topic best)
-   * 
+   *
    * @param {string} excludeStudentId - The blocked student (can't mentor themselves)
    * @returns {Student|null}
    */
@@ -103,7 +103,7 @@ export class Session {
    */
   toNodeMap() {
     const nodes = Array.from(this.students.values()).map((s) => s.toNodeMapEntry());
-    
+
     // Inject the Teacher Root Node (Obsidian style anchor)
     nodes.push({
       studentId: `teacher-${this.sessionId}`,
@@ -125,5 +125,33 @@ export class Session {
   /** @returns {number} */
   get studentCount() {
     return this.students.size;
+  }
+
+  /**
+   * Serializes the full session (including every student) for durable storage.
+   * @returns {Object}
+   */
+  toJSON() {
+    return {
+      sessionId: this.sessionId,
+      teacherId: this.teacherId,
+      createdAt: this.createdAt,
+      students: Array.from(this.students.values()).map((s) => s.toJSON()),
+    };
+  }
+
+  /**
+   * Rebuilds a Session (and all its Students) from its serialized form.
+   * @param {Object} data
+   * @returns {Session}
+   */
+  static fromJSON(data) {
+    const students = new Map((data.students || []).map((s) => [s.studentId, Student.fromJSON(s)]));
+    return new Session({
+      sessionId: data.sessionId,
+      teacherId: data.teacherId ?? null,
+      createdAt: data.createdAt ?? Date.now(),
+      students,
+    });
   }
 }

@@ -1,7 +1,7 @@
 import logging
 
 from gemini_agent import Agent, AgentError
-from models.schemas import WindowMetrics, HistoricalContext, AnalysisResult, AnalyzeResponse
+from models.schemas import AnalysisResult, AnalyzeResponse, HistoricalContext, WindowMetrics
 
 logger = logging.getLogger("synaptic.process_trace")
 
@@ -44,7 +44,7 @@ SYSTEM_INSTRUCTION = (
 
 process_trace_agent = Agent(
     name="Process Trace AI",
-    model="gemini-1.5-flash",
+    model="gemini-2.5-flash",
     system_instruction=SYSTEM_INSTRUCTION,
     response_schema=AnalysisResult,
 )

@@ -37,10 +37,7 @@ export class CircuitBreaker {
     this.lastFailureTime = 0;
     this.successCount = 0;
 
-    log.info(
-      { name, failureThreshold, resetTimeoutMs },
-      'Circuit breaker initialized'
-    );
+    log.info({ name, failureThreshold, resetTimeoutMs }, 'Circuit breaker initialized');
   }
 
   /**
@@ -103,7 +100,12 @@ export class CircuitBreaker {
     this.lastFailureTime = Date.now();
 
     log.warn(
-      { name: this.name, failureCount: this.failureCount, threshold: this.failureThreshold, err: error },
+      {
+        name: this.name,
+        failureCount: this.failureCount,
+        threshold: this.failureThreshold,
+        err: error,
+      },
       'Circuit breaker recorded failure'
     );
 
@@ -144,9 +146,7 @@ export class CircuitBreaker {
       state: this.state,
       failureCount: this.failureCount,
       successCount: this.successCount,
-      lastFailureTime: this.lastFailureTime
-        ? new Date(this.lastFailureTime).toISOString()
-        : null,
+      lastFailureTime: this.lastFailureTime ? new Date(this.lastFailureTime).toISOString() : null,
     };
   }
 }

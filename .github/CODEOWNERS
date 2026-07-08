@@ -1,0 +1,22 @@
+# ============================================
+# Synaptic Room — Code Owners (P0-R-009)
+# ============================================
+# Every PR requires review from the owning area. Replace the placeholder teams
+# with real GitHub handles/teams before enabling branch protection.
+
+# Default owner for everything
+*                       @nexora/maintainers
+
+# Server (Node.js backend)
+/server/                @nexora/backend
+
+# AI agents (Python)
+/agents/                @nexora/ai
+
+# Client (React)
+/client/                @nexora/frontend
+
+# Specs & governance — changes here need lead review
+/docs/sdd/              @nexora/leads
+/.github/               @nexora/leads
+/docker-compose.yml     @nexora/leads
